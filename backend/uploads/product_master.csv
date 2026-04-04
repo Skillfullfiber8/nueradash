@@ -1,0 +1,5 @@
+product_id,product_name,category,cost_price,selling_price,profit_per_unit,brand
+P001,Protein Powder,Health,900,1200,300,LifeEssenz
+P002,Green Tea,Wellness,150,250,100,LifeEssenz
+P003,Vitamin C,Supplements,320,499,179,LifeEssenz
+P004,Detox Juice,Health,100,150,50,LifeEssenz

@@ -1,6 +1,9 @@
+import { useNavigate } from "react-router-dom";
 import AuthForm from "../components/AuthForm";
 
 export default function Login() {
+  const navigate = useNavigate();
+
   const handleLogin = async (formData) => {
     const res = await fetch("http://localhost:5000/api/auth/login", {
       method: "POST",
@@ -9,11 +12,10 @@ export default function Login() {
     });
 
     const data = await res.json();
-    console.log(data);
 
     if (data.token) {
       localStorage.setItem("token", data.token);
-      alert("Login Successful!");
+      navigate("/dashboard");
     } else {
       alert("Login failed!");
     }

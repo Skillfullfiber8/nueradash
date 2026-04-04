@@ -1,0 +1,6 @@
+Order_ID,Client_Name,Zone,Email_Address,Phone_Number,Item_Code,Item_Title,Category_Type,Qty,Unit_Price,Total_Value,Order_Date,City,Payment_Type
+S001,Rahul Sharma,North,rahul@gmail.com,9876543210,P101,Wireless Mouse,Electronics,2,500,1000,2024-03-01,Delhi,UPI
+S002,Anita Verma,South,anita@gmail.com,9123456780,P102,Bluetooth Speaker,Electronics,1,1500,1500,2024-03-02,Chennai,Card
+S003,Vikram Singh,West,vikram@gmail.com,9988776655,P103,Office Chair,Furniture,1,3500,3500,2024-03-03,Mumbai,Cash
+S004,Pooja Nair,South,pooja@gmail.com,9871234567,P101,Wireless Mouse,Electronics,3,500,1500,2024-03-04,Kochi,UPI
+S005,Amit Patel,West,amit@gmail.com,9765432109,P104,Study Table,Furniture,1,4500,4500,2024-03-05,Ahmedabad,Card

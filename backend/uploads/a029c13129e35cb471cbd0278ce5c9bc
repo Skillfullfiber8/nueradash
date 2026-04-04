@@ -1,0 +1,11 @@
+Sale ID,Customer Name,Region,Customer Email,Customer Phone,Product ID,Product Name,Category,Quantity,Price,Date,Location,Payment Method
+S1001,John Doe,South,john@example.com,9876543210,P001,Protein Powder,Health,2,1200,1/5/2025,Coimbatore,UPI
+S1002,Priya Sharma,North,priya@example.com,9988776655,P002,Green Tea,Wellness,5,250,1/5/2025,Delhi,Credit Card
+S1003,Rahul Kumar,West,rahul@example.com,9123456780,P001,Protein Powder,Health,1,1200,1/6/2025,Mumbai,Cash
+S1004,Aisha Khan,East,aisha@example.com,9090909090,P003,Vitamin C,Supplements,3,499,1/6/2025,Kolkata,UPI
+S1005,Rohan Singh,South,rohan@example.com,9911223344,P002,Green Tea,Wellness,2,250,1/7/2025,Bangalore,Debit Card
+S1006,John Doe,South,john@example.com,9876543210,P004,Detox Juice,Health,4,150,1/8/2025,Coimbatore,Cash
+S1007,Priya Sharma,North,priya@example.com,9988776655,P001,Protein Powder,Health,1,1200,1/9/2025,Delhi,UPI
+S1008,Aisha Khan,East,aisha@example.com,9090909090,P003,Vitamin C,Supplements,6,499,1/10/2025,Kolkata,Credit Card
+S1009,Rohan Singh,South,rohan@example.com,9911223344,P004,Detox Juice,Health,3,150,1/11/2025,Bangalore,UPI
+S1010,Rahul Kumar,West,rahul@example.com,9123456780,P002,Green Tea,Wellness,10,250,1/12/2025,Mumbai,Cash
