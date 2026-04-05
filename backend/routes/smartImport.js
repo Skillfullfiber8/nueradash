@@ -3,9 +3,11 @@ import multer from "multer";
 import fs from "fs";
 import Papa from "papaparse";
 import Groq from "groq-sdk";
+import mongoose from "mongoose";
 import SalesCustomer from "../models/SalesCustomer.js";
 import ProductMaster from "../models/ProductMaster.js";
 import { verifyToken } from "../middleware/authMiddleware.js";
+import { generateAndSaveSummary } from "../services/generateSummary.js";
 
 const router = express.Router();
 const upload = multer({ dest: "uploads/" });
@@ -88,13 +90,23 @@ router.post("/import", verifyToken, async (req, res) => {
       return res.status(400).json({ message: "Missing filePath or mapping" });
     }
 
+    // Check MongoDB connection
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(500).json({ message: "Database not connected" });
+    }
+
     const csvText = fs.readFileSync(filePath, "utf8");
     const parsed = Papa.parse(csvText, { header: true, skipEmptyLines: true });
     const rows = parsed.data;
 
     const productMaster = await ProductMaster.find();
+    console.log("ProductMaster count in smart import:", productMaster.length);
+
     const productMap = {};
-    productMaster.forEach((p) => { productMap[p.productId] = p; });
+    productMaster.forEach((p) => {
+      productMap[p.productId] = p;
+      console.log("Mapped:", p.productId, "costPrice:", p.costPrice);
+    });
 
     const standardized = rows.map((row, index) => {
       const mapped = {};
@@ -105,6 +117,8 @@ router.post("/import", verifyToken, async (req, res) => {
       }
 
       const product = productMap[mapped["Product ID"]] || {};
+      console.log("Row Product ID:", mapped["Product ID"], "Found:", product.productName || "NOT FOUND");
+
       const quantity = Number(mapped["Quantity"]) || 0;
       const price = Number(mapped["Price"]) || product.sellingPrice || 0;
       const costPrice = product.costPrice || 0;
@@ -134,6 +148,7 @@ router.post("/import", verifyToken, async (req, res) => {
     });
 
     await SalesCustomer.insertMany(standardized);
+    await generateAndSaveSummary(req.user.id);
 
     res.json({
       message: "Data imported successfully!",

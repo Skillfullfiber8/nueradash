@@ -1,27 +1,22 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
-import { useNavigate } from "react-router-dom";
 
 export default function ProductMaster() {
   const [products, setProducts] = useState([]);
   const [form, setForm] = useState({ productId: "", productName: "", category: "", costPrice: "", sellingPrice: "" });
   const [editingId, setEditingId] = useState(null);
-  const navigate = useNavigate();
   const token = localStorage.getItem("token");
   const headers = { Authorization: `Bearer ${token}` };
+  const API = process.env.REACT_APP_API_URL;
 
-  useEffect(() => {
-    fetchProducts();
-  }, []);
+  useEffect(() => { fetchProducts(); }, []);
 
   const fetchProducts = async () => {
-    const res = await axios.get("http://localhost:5000/api/product-master", { headers });
+    const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/product-master`, { headers });
     setProducts(res.data);
   };
 
-  const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  };
+  const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
   const handleSubmit = async () => {
     if (!form.productId || !form.productName || !form.costPrice || !form.sellingPrice) {
@@ -29,24 +24,18 @@ export default function ProductMaster() {
       return;
     }
     if (editingId) {
-      await axios.put(`http://localhost:5000/api/product-master/${editingId}`, form, { headers });
+      await axios.put(`${process.env.REACT_APP_API_URL}/api/product-master/${editingId}`, form, { headers });
       setEditingId(null);
     } else {
-      await axios.post("http://localhost:5000/api/product-master", form, { headers });
+      await axios.post(`${process.env.REACT_APP_API_URL}/api/product-master`, form, { headers });
     }
     setForm({ productId: "", productName: "", category: "", costPrice: "", sellingPrice: "" });
     fetchProducts();
   };
 
-  const handleEdit = (product) => {
-    setForm({
-      productId: product.productId,
-      productName: product.productName,
-      category: product.category,
-      costPrice: product.costPrice,
-      sellingPrice: product.sellingPrice,
-    });
-    setEditingId(product._id);
+  const handleEdit = (p) => {
+    setForm({ productId: p.productId, productName: p.productName, category: p.category, costPrice: p.costPrice, sellingPrice: p.sellingPrice });
+    setEditingId(p._id);
   };
 
   const handleDelete = async (id) => {
@@ -55,55 +44,69 @@ export default function ProductMaster() {
   };
 
   return (
-    <div className="p-6 bg-gray-100 min-h-screen">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">📦 Product Master</h1>
-        <button onClick={() => navigate("/dashboard")} className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600">
-          Back to Dashboard
-        </button>
-      </div>
+    <div className="max-w-5xl mx-auto px-4 py-6">
+      <h1 className="text-2xl font-bold text-gray-800 dark:text-white mb-6">📦 Product Master</h1>
 
       {/* Form */}
-      <div className="bg-white p-4 rounded shadow mb-6 grid grid-cols-5 gap-3">
-        <input name="productId" placeholder="Product ID" value={form.productId} onChange={handleChange} className="border p-2 rounded" />
-        <input name="productName" placeholder="Product Name" value={form.productName} onChange={handleChange} className="border p-2 rounded" />
-        <input name="category" placeholder="Category" value={form.category} onChange={handleChange} className="border p-2 rounded" />
-        <input name="costPrice" placeholder="Cost Price" type="number" value={form.costPrice} onChange={handleChange} className="border p-2 rounded" />
-        <input name="sellingPrice" placeholder="Selling Price" type="number" value={form.sellingPrice} onChange={handleChange} className="border p-2 rounded" />
-        <button onClick={handleSubmit} className="col-span-5 bg-blue-500 text-white py-2 rounded hover:bg-blue-600">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow p-5 mb-6">
+        <h2 className="text-lg font-semibold text-gray-700 dark:text-gray-200 mb-4">
+          {editingId ? "Edit Product" : "Add Product"}
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 mb-4">
+          {["productId", "productName", "category", "costPrice", "sellingPrice"].map((field) => (
+            <input
+              key={field}
+              name={field}
+              placeholder={field.replace(/([A-Z])/g, " $1").trim()}
+              value={form[field]}
+              onChange={handleChange}
+              type={field.includes("Price") ? "number" : "text"}
+              className="border dark:border-gray-600 rounded-xl px-4 py-2 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-400 text-sm"
+            />
+          ))}
+        </div>
+        <button
+          onClick={handleSubmit}
+          className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 rounded-xl transition"
+        >
           {editingId ? "Update Product" : "Add Product"}
         </button>
+        {editingId && (
+          <button
+            onClick={() => { setEditingId(null); setForm({ productId: "", productName: "", category: "", costPrice: "", sellingPrice: "" }); }}
+            className="w-full mt-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-semibold py-2 rounded-xl transition"
+          >
+            Cancel
+          </button>
+        )}
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded shadow overflow-x-auto">
-        <table className="w-full text-left">
-          <thead className="bg-gray-200">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow overflow-x-auto">
+        <table className="w-full text-sm text-left">
+          <thead className="bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
             <tr>
-              <th className="p-3">Product ID</th>
-              <th className="p-3">Product Name</th>
-              <th className="p-3">Category</th>
-              <th className="p-3">Cost Price</th>
-              <th className="p-3">Selling Price</th>
-              <th className="p-3">Actions</th>
+              {["Product ID", "Product Name", "Category", "Cost Price", "Selling Price", "Actions"].map((h) => (
+                <th key={h} className="px-4 py-3 font-semibold">{h}</th>
+              ))}
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y dark:divide-gray-700">
             {products.map((p) => (
-              <tr key={p._id} className="border-t">
-                <td className="p-3">{p.productId}</td>
-                <td className="p-3">{p.productName}</td>
-                <td className="p-3">{p.category}</td>
-                <td className="p-3">₹{p.costPrice}</td>
-                <td className="p-3">₹{p.sellingPrice}</td>
-                <td className="p-3 flex gap-2">
-                  <button onClick={() => handleEdit(p)} className="bg-yellow-400 text-white px-3 py-1 rounded hover:bg-yellow-500">Edit</button>
-                  <button onClick={() => handleDelete(p._id)} className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600">Delete</button>
+              <tr key={p._id} className="hover:bg-gray-50 dark:hover:bg-gray-750">
+                <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{p.productId}</td>
+                <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{p.productName}</td>
+                <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{p.category}</td>
+                <td className="px-4 py-3 text-gray-700 dark:text-gray-300">₹{p.costPrice}</td>
+                <td className="px-4 py-3 text-gray-700 dark:text-gray-300">₹{p.sellingPrice}</td>
+                <td className="px-4 py-3 flex gap-2">
+                  <button onClick={() => handleEdit(p)} className="bg-yellow-400 hover:bg-yellow-500 text-white px-3 py-1 rounded-lg text-xs">Edit</button>
+                  <button onClick={() => handleDelete(p._id)} className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-lg text-xs">Delete</button>
                 </td>
               </tr>
             ))}
             {products.length === 0 && (
-              <tr><td colSpan="6" className="p-4 text-center text-gray-400">No products added yet</td></tr>
+              <tr><td colSpan="6" className="px-4 py-6 text-center text-gray-400">No products added yet</td></tr>
             )}
           </tbody>
         </table>

@@ -6,6 +6,7 @@ import SalesCustomer from "../models/SalesCustomer.js";
 import ProductMaster from "../models/ProductMaster.js";
 import { convertCSV } from "../services/csvConverter.js";
 import { verifyToken } from "../middleware/authMiddleware.js";
+import { generateAndSaveSummary } from "../services/generateSummary.js";
 
 const router = express.Router();
 const upload = multer({ dest: "uploads/" });
@@ -14,14 +15,11 @@ router.post("/upload-sales-customer", verifyToken, upload.single("file"), async 
   try {
     if (!req.file) return res.status(400).json({ message: "No file uploaded" });
 
-    // Wait for mongoose connection
     if (mongoose.connection.readyState !== 1) {
       return res.status(500).json({ message: "Database not connected" });
     }
 
     const productMaster = await ProductMaster.find();
-    console.log("ProductMaster count:", productMaster.length);
-
     const csvText = fs.readFileSync(req.file.path, "utf8");
     const convertedData = convertCSV(csvText, productMaster).map(row => ({
       ...row,
@@ -29,6 +27,9 @@ router.post("/upload-sales-customer", verifyToken, upload.single("file"), async 
     }));
 
     await SalesCustomer.insertMany(convertedData);
+
+    // Generate AI summary after upload
+    await generateAndSaveSummary(req.user.id);
 
     res.json({
       message: "CSV uploaded & saved successfully",

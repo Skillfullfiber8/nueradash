@@ -1,156 +1,252 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend
+  PieChart, Pie, Cell, Legend, LineChart, Line
 } from "recharts";
 
-const COLORS = ["#6366f1", "#22d3ee", "#f59e0b", "#10b981", "#f43f5e"];
+const COLORS = ["#6366f1", "#22d3ee", "#f59e0b", "#10b981", "#f43f5e", "#8b5cf6", "#ec4899"];
+
+function StatCard({ label, value }) {
+  return (
+    <div className="bg-white dark:bg-gray-800 p-5 rounded-2xl shadow flex flex-col gap-1">
+      <p className="text-sm text-gray-500 dark:text-gray-400">{label}</p>
+      <p className="text-2xl font-bold text-gray-800 dark:text-white">{value}</p>
+    </div>
+  );
+}
+
+function ChartCard({ title, children }) {
+  return (
+    <div className="bg-white dark:bg-gray-800 p-5 rounded-2xl shadow">
+      <h2 className="text-lg font-semibold text-gray-700 dark:text-gray-200 mb-4">{title}</h2>
+      {children}
+    </div>
+  );
+}
 
 function Dashboard() {
   const [summary, setSummary] = useState({});
   const [topProducts, setTopProducts] = useState([]);
-  const [regions, setRegions] = useState([]);
-  const navigate = useNavigate();
+  const [cities, setCities] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [paymentMethods, setPaymentMethods] = useState([]);
+  const [prediction, setPrediction] = useState([]);
+  const [aiSummary, setAiSummary] = useState({ summary: "", generatedAt: null });
+  const [loadingAI, setLoadingAI] = useState(false);
+  const [topCustomers, setTopCustomers] = useState([]);
+  const [customerTypes, setCustomerTypes] = useState({ repeatCustomers: 0, newCustomers: 0 });
+  const API = process.env.REACT_APP_API_URL;
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  useEffect(() => { fetchData(); }, []);
 
   const fetchData = async () => {
     try {
       const token = localStorage.getItem("token");
       const headers = { Authorization: `Bearer ${token}` };
 
-      const summaryRes = await axios.get("http://localhost:5000/api/insights/summary", { headers });
-      const productsRes = await axios.get("http://localhost:5000/api/insights/top-products", { headers });
-      const regionRes = await axios.get("http://localhost:5000/api/insights/sales-by-region", { headers });
+      const [
+        summaryRes, productsRes, cityRes, categoryRes,
+        paymentRes, predictionRes, topCustomersRes, customerTypesRes
+      ] = await Promise.all([
+        axios.get(`${process.env.REACT_APP_API_URL}/api/insights/summary`, { headers }),
+        axios.get(`${process.env.REACT_APP_API_URL}/api/insights/top-products`, { headers }),
+        axios.get(`${process.env.REACT_APP_API_URL}/api/insights/sales-by-city`, { headers }),
+        axios.get(`${process.env.REACT_APP_API_URL}/api/insights/sales-by-category`, { headers }),
+        axios.get(`${process.env.REACT_APP_API_URL}/api/insights/payment-methods`, { headers }),
+        axios.get(`${process.env.REACT_APP_API_URL}/api/insights/sales-prediction`, { headers }),
+        axios.get(`${process.env.REACT_APP_API_URL}/api/insights/top-customers`, { headers }),
+        axios.get(`${process.env.REACT_APP_API_URL}/api/insights/customer-types`, { headers }),
+      ]);
 
       setSummary(summaryRes.data);
       setTopProducts(productsRes.data);
-      setRegions(regionRes.data);
+      setCities(cityRes.data);
+      setCategories(categoryRes.data);
+      setPaymentMethods(paymentRes.data);
+      setTopCustomers(topCustomersRes.data);
+      setCustomerTypes(customerTypesRes.data);
+
+      const { historical, predicted } = predictionRes.data;
+      setPrediction([...(historical || []), ...(predicted || [])]);
+
+      setLoadingAI(true);
+      const aiRes = await axios.get("http://localhost:5000/api/insights/ai-summary", { headers });
+      setAiSummary(aiRes.data);
+
     } catch (err) {
       console.error(err);
+    } finally {
+      setLoadingAI(false);
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    navigate("/login");
-  };
+  const avgOrderValue = summary.count ? Math.round(summary.totalSales / summary.count) : 0;
+  const totalCustomers = customerTypes.repeatCustomers + customerTypes.newCustomers;
 
   return (
-    <div className="p-6 bg-gray-100 min-h-screen">
+    <div className="max-w-7xl mx-auto px-4 py-6 flex flex-col gap-6">
 
-      {/* Header */}
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">📊 Dashboard</h1>
-        <div className="flex gap-3">
-          <button onClick={() => navigate("/upload")} className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
-            Upload CSV
-          </button>
-          <button onClick={() => navigate("/smart-import")} className="bg-purple-500 text-white px-4 py-2 rounded hover:bg-purple-600">
-              Smart Import
-            </button>
-          <button onClick={() => navigate("/products")} className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">
-            Products
-          </button>
-          <button onClick={handleLogout} className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600">
-            Logout
-          </button>
+      {/* AI Summary */}
+      <div className="bg-indigo-50 dark:bg-indigo-950 border border-indigo-200 dark:border-indigo-800 p-5 rounded-2xl shadow">
+        <div className="flex justify-between items-center mb-2 flex-wrap gap-2">
+          <h2 className="text-lg font-semibold text-indigo-700 dark:text-indigo-300">🤖 AI Business Summary</h2>
+          {aiSummary.generatedAt && (
+            <span className="text-xs text-gray-400">
+              Last updated: {new Date(aiSummary.generatedAt).toLocaleString()}
+            </span>
+          )}
         </div>
+        {loadingAI ? (
+          <p className="text-gray-400 italic text-sm">Loading summary...</p>
+        ) : (
+          <p className="text-gray-700 dark:text-gray-300 leading-relaxed text-sm">
+            {aiSummary.summary || "No summary yet. Upload data to generate one."}
+          </p>
+        )}
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
-        <div className="bg-white p-4 rounded shadow">
-          <h2 className="text-gray-500">Total Sales</h2>
-          <p className="text-2xl font-bold">₹{summary.totalSales}</p>
-        </div>
-        <div className="bg-white p-4 rounded shadow">
-          <h2 className="text-gray-500">Total Profit</h2>
-          <p className="text-2xl font-bold">₹{summary.totalProfit}</p>
-        </div>
-        <div className="bg-white p-4 rounded shadow">
-          <h2 className="text-gray-500">Orders</h2>
-          <p className="text-2xl font-bold">{summary.count}</p>
-        </div>
+      {/* Stat Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <StatCard label="Total Sales" value={`₹${summary.totalSales || 0}`} />
+        <StatCard label="Total Profit" value={`₹${summary.totalProfit || 0}`} />
+        <StatCard label="Orders" value={summary.count || 0} />
+        <StatCard label="Avg Order Value" value={`₹${avgOrderValue}`} />
       </div>
 
-      {/* Charts Row */}
-      <div className="grid grid-cols-2 gap-6 mb-6">
+      {/* Sales Trend */}
+      <ChartCard title="📈 Sales Trend & 7-Day Prediction">
+        <ResponsiveContainer width="100%" height={280}>
+          <LineChart data={prediction}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+            <XAxis dataKey="_id" tick={{ fontSize: 11 }} />
+            <YAxis />
+            <Tooltip formatter={(value) => `₹${value}`} />
+            <Line
+              type="monotone"
+              dataKey="totalSales"
+              stroke="#6366f1"
+              strokeWidth={2}
+              dot={({ cx, cy, payload }) => (
+                <circle key={payload._id} cx={cx} cy={cy} r={4}
+                  fill={payload.predicted ? "#f59e0b" : "#6366f1"}
+                  stroke="white" strokeWidth={1}
+                />
+              )}
+            />
+          </LineChart>
+        </ResponsiveContainer>
+        <p className="text-xs text-gray-400 mt-2">🟣 Historical &nbsp; 🟡 Predicted (Linear Regression)</p>
+      </ChartCard>
 
-        {/* Bar Chart - Top Products */}
-        <div className="bg-white p-4 rounded shadow">
-          <h2 className="text-xl font-semibold mb-4">🏆 Top Products</h2>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={topProducts} margin={{ top: 5, right: 20, left: 10, bottom: 60 }}>
+      {/* Top Products + City */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <ChartCard title="🏆 Top Products">
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={topProducts} margin={{ bottom: 50 }}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="_id" angle={-30} textAnchor="end" interval={0} tick={{ fontSize: 12 }} />
+              <XAxis dataKey="_id" angle={-30} textAnchor="end" interval={0} tick={{ fontSize: 11 }} />
               <YAxis />
-              <Tooltip formatter={(value) => `₹${value}`} />
+              <Tooltip formatter={(v) => `₹${v}`} />
               <Bar dataKey="totalRevenue" fill="#6366f1" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
-        </div>
+        </ChartCard>
 
-        {/* Pie Chart - Sales by Region */}
-        <div className="bg-white p-4 rounded shadow">
-          <h2 className="text-xl font-semibold mb-4">🌍 Sales by Region</h2>
-          <ResponsiveContainer width="100%" height={300}>
+        <ChartCard title="🏙️ Sales by City">
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={cities} margin={{ bottom: 50 }}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="_id" angle={-30} textAnchor="end" interval={0} tick={{ fontSize: 11 }} />
+              <YAxis />
+              <Tooltip formatter={(v) => `₹${v}`} />
+              <Bar dataKey="totalSales" fill="#22d3ee" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
+      </div>
+
+      {/* Category + Payment */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <ChartCard title="🏷️ Sales by Category">
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={categories} margin={{ bottom: 40 }}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="_id" angle={-20} textAnchor="end" interval={0} tick={{ fontSize: 11 }} />
+              <YAxis />
+              <Tooltip formatter={(v) => `₹${v}`} />
+              <Bar dataKey="totalSales" fill="#10b981" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
+
+        <ChartCard title="💳 Payment Methods">
+          <ResponsiveContainer width="100%" height={260}>
             <PieChart>
-              <Pie
-                data={regions}
-                dataKey="totalSales"
-                nameKey="_id"
-                cx="50%"
-                cy="50%"
-                outerRadius={100}
-                label={({ _id, percent }) => `${_id} ${(percent * 100).toFixed(0)}%`}
-              >
-                {regions.map((_, index) => (
-                  <Cell key={index} fill={COLORS[index % COLORS.length]} />
-                ))}
+              <Pie data={paymentMethods} dataKey="count" nameKey="_id"
+                cx="50%" cy="50%" outerRadius={90}
+                label={({ _id, percent }) => `${_id} ${(percent * 100).toFixed(0)}%`}>
+                {paymentMethods.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
               </Pie>
-              <Tooltip formatter={(value) => `₹${value}`} />
+              <Tooltip />
               <Legend />
             </PieChart>
           </ResponsiveContainer>
-        </div>
-
+        </ChartCard>
       </div>
 
-      {/* Tables Row */}
-      <div className="grid grid-cols-2 gap-6">
-
-        {/* Top Products Table */}
-        <div className="bg-white p-4 rounded shadow">
-          <h2 className="text-xl font-semibold mb-3">🏆 Top Products</h2>
-          <ul>
-            {topProducts.map((p, i) => (
-              <li key={i} className="flex justify-between border-b py-2">
-                <span>{p._id}</span>
-                <span>₹{p.totalRevenue}</span>
+      {/* Customer Insights */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <ChartCard title="👤 Top Customers">
+          <ul className="divide-y dark:divide-gray-700">
+            {topCustomers.map((c, i) => (
+              <li key={i} className="flex justify-between items-center py-3">
+                <div>
+                  <p className="font-medium text-gray-800 dark:text-gray-100">{c._id}</p>
+                  <p className="text-xs text-gray-400">{c.orders} order{c.orders > 1 ? "s" : ""}</p>
+                </div>
+                <span className="font-semibold text-indigo-600 dark:text-indigo-400">₹{c.totalSpent}</span>
               </li>
             ))}
           </ul>
-        </div>
+        </ChartCard>
 
-        {/* Region Table */}
-        <div className="bg-white p-4 rounded shadow">
-          <h2 className="text-xl font-semibold mb-3">🌍 Sales by Region</h2>
-          <ul>
-            {regions.map((r, i) => (
-              <li key={i} className="flex justify-between border-b py-2">
-                <span>{r._id}</span>
-                <span>₹{r.totalSales}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-
+        <ChartCard title="🔁 Repeat vs New Customers">
+          <ResponsiveContainer width="100%" height={200}>
+            <PieChart>
+              <Pie
+                data={[
+                  { name: "New", value: customerTypes.newCustomers },
+                  { name: "Repeat", value: customerTypes.repeatCustomers },
+                ]}
+                dataKey="value" nameKey="name"
+                cx="50%" cy="50%" outerRadius={75}
+                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+              >
+                <Cell fill="#6366f1" />
+                <Cell fill="#f59e0b" />
+              </Pie>
+              <Tooltip />
+              <Legend />
+            </PieChart>
+          </ResponsiveContainer>
+          <div className="flex justify-around mt-3 text-center">
+            <div>
+              <p className="text-xl font-bold text-indigo-500">{customerTypes.newCustomers}</p>
+              <p className="text-xs text-gray-500">New</p>
+            </div>
+            <div>
+              <p className="text-xl font-bold text-yellow-500">{customerTypes.repeatCustomers}</p>
+              <p className="text-xs text-gray-500">Repeat</p>
+            </div>
+            <div>
+              <p className="text-xl font-bold text-gray-700 dark:text-gray-300">{totalCustomers}</p>
+              <p className="text-xs text-gray-500">Total</p>
+            </div>
+          </div>
+        </ChartCard>
       </div>
+
     </div>
   );
 }

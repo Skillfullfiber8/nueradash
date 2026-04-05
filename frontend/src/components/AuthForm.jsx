@@ -1,11 +1,7 @@
 import { useState } from "react";
 
-export default function AuthForm({ title, onSubmit, buttonLabel }) {
-  const [formData, setFormData] = useState({
-    name: "",
-    email: "",
-    password: "",
-  });
+export default function AuthForm({ title, buttonLabel, onSubmit }) {
+  const [formData, setFormData] = useState({ name: "", email: "", password: "" });
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -17,45 +13,38 @@ export default function AuthForm({ title, onSubmit, buttonLabel }) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
-      <div className="bg-white p-8 rounded-xl shadow-lg w-full max-w-md">
-        <h1 className="text-3xl font-bold text-center mb-6">{title}</h1>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {title === "Signup" && (
-            <input
-              type="text"
-              name="name"
-              placeholder="Your Name"
-              className="w-full p-3 border rounded-lg"
-              onChange={handleChange}
-            />
-          )}
-
-          <input
-            type="email"
-            name="email"
-            placeholder="Email"
-            className="w-full p-3 border rounded-lg"
-            onChange={handleChange}
-          />
-
-          <input
-            type="password"
-            name="password"
-            placeholder="Password"
-            className="w-full p-3 border rounded-lg"
-            onChange={handleChange}
-          />
-
-          <button
-            type="submit"
-            className="w-full bg-blue-600 text-white p-3 rounded-lg hover:bg-blue-700"
-          >
-            {buttonLabel}
-          </button>
-        </form>
-      </div>
-    </div>
+    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      {title === "Sign Up" && (
+        <input
+          name="name"
+          placeholder="Full Name"
+          value={formData.name}
+          onChange={handleChange}
+          className="border dark:border-gray-600 rounded-lg px-4 py-2 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+        />
+      )}
+      <input
+        name="email"
+        type="email"
+        placeholder="Email"
+        value={formData.email}
+        onChange={handleChange}
+        className="border dark:border-gray-600 rounded-lg px-4 py-2 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+      />
+      <input
+        name="password"
+        type="password"
+        placeholder="Password"
+        value={formData.password}
+        onChange={handleChange}
+        className="border dark:border-gray-600 rounded-lg px-4 py-2 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+      />
+      <button
+        type="submit"
+        className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 rounded-lg transition"
+      >
+        {buttonLabel}
+      </button>
+    </form>
   );
 }
