@@ -7,7 +7,6 @@ export default function ProductMaster() {
   const [editingId, setEditingId] = useState(null);
   const token = localStorage.getItem("token");
   const headers = { Authorization: `Bearer ${token}` };
-  const API = process.env.REACT_APP_API_URL;
 
   useEffect(() => { fetchProducts(); }, []);
 

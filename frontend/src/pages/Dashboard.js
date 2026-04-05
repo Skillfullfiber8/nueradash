@@ -36,7 +36,6 @@ function Dashboard() {
   const [loadingAI, setLoadingAI] = useState(false);
   const [topCustomers, setTopCustomers] = useState([]);
   const [customerTypes, setCustomerTypes] = useState({ repeatCustomers: 0, newCustomers: 0 });
-  const API = process.env.REACT_APP_API_URL;
 
   useEffect(() => { fetchData(); }, []);
 
