@@ -17,9 +17,25 @@ import smartImportRoutes from "./routes/smartImport.js";
 const app = express();
 
 app.use(cors({
-  origin: ["https://nueradash.vercel.app", "http://localhost:3000"],
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);
+
+    // Allow localhost
+    if (origin.includes("localhost")) {
+      return callback(null, true);
+    }
+
+    // Allow ALL Vercel deployments
+    if (origin.includes("vercel.app")) {
+      return callback(null, true);
+    }
+
+    return callback(new Error("Not allowed by CORS"));
+  },
   credentials: true,
 }));
+
+app.options("*", cors());
 
 app.use(express.json());
 
