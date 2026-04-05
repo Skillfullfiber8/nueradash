@@ -20,13 +20,7 @@ app.use(cors({
   origin: function (origin, callback) {
     if (!origin) return callback(null, true);
 
-    // Allow localhost
-    if (origin.includes("localhost")) {
-      return callback(null, true);
-    }
-
-    // Allow ALL Vercel deployments
-    if (origin.includes("vercel.app")) {
+    if (origin.includes("localhost") || origin.includes("vercel.app")) {
       return callback(null, true);
     }
 
@@ -34,8 +28,6 @@ app.use(cors({
   },
   credentials: true,
 }));
-
-app.options("*", cors());
 
 app.use(express.json());
 
