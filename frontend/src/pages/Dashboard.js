@@ -70,7 +70,7 @@ function Dashboard() {
       setPrediction([...(historical || []), ...(predicted || [])]);
 
       setLoadingAI(true);
-      const aiRes = await axios.get("http://localhost:5000/api/insights/ai-summary", { headers });
+      const aiRes = await axios.get(`${process.env.REACT_APP_API_URL}/api/insights/ai-summary`, { headers });
       setAiSummary(aiRes.data);
 
     } catch (err) {
