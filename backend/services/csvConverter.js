@@ -3,17 +3,17 @@ import Papa from "papaparse";
 export function convertCSV(csvText, productMaster = []) {
   console.log("convertCSV called, productMaster length:", productMaster.length);
 
-  // Parse CSV
   const parsed = Papa.parse(csvText, {
     header: true,
     skipEmptyLines: true,
+    transformHeader: (header) => header.trim(),
+    transform: (value) => value.trim(),
   });
 
   const rows = parsed.data || [];
 
   console.log("First row Product ID:", rows[0]?.["Product ID"]);
 
-  // Convert product master array to quick lookup map
   const productMap = {};
   productMaster.forEach((p) => {
     productMap[p.productId] = p;
@@ -22,7 +22,6 @@ export function convertCSV(csvText, productMaster = []) {
 
   console.log("Lookup result:", productMap[rows[0]?.["Product ID"]]);
 
-  // Standardize rows
   const standardized = rows.map((row, index) => {
     const product = productMap[row["Product ID"]] || {};
 
@@ -40,19 +39,15 @@ export function convertCSV(csvText, productMaster = []) {
       region: row["Region"] || "",
       email: row["Customer Email"] || "",
       phone: row["Customer Phone"] || "",
-
       productId: row["Product ID"] || "",
       productName: row["Product Name"] || product.productName || "",
       category: row["Category"] || product.category || "",
-
       quantity,
       price,
       totalAmount: quantity * price,
-
       date: row["Date"] ? new Date(row["Date"]) : null,
       location: row["Location"] || "",
       paymentMethod: row["Payment Method"] || "",
-
       costPrice,
       sellingPrice,
       profitMargin: totalProfit,
