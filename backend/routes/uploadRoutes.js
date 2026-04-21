@@ -30,6 +30,30 @@ router.post("/upload-sales-customer", verifyToken, upload.single("file"), async 
       userId: req.user.id,
     }));
 
+    // ── Auto-detect and add new products ─────────────────────────
+    const existingProductIds = new Set(productMaster.map(p => p.productId));
+    const newProductsMap = {};
+
+    convertedData.forEach(row => {
+      if (row.productId && !existingProductIds.has(row.productId) && !newProductsMap[row.productId]) {
+        newProductsMap[row.productId] = {
+          userId: req.user.id,
+          productId: row.productId,
+          productName: row.productName || "",
+          category: row.category || "",
+          costPrice: 0,
+          sellingPrice: row.price || 0,
+        };
+      }
+    });
+
+    const newProducts = Object.values(newProductsMap);
+    if (newProducts.length > 0) {
+      await ProductMaster.insertMany(newProducts);
+      console.log(`✅ ${newProducts.length} new products added to ProductMaster`);
+    }
+    // ─────────────────────────────────────────────────────────────
+
     await SalesCustomer.insertMany(convertedData);
     console.log("✅ Sales data saved:", convertedData.length, "rows");
 
@@ -43,6 +67,7 @@ router.post("/upload-sales-customer", verifyToken, upload.single("file"), async 
     res.json({
       message: "CSV uploaded & saved successfully",
       rows_saved: convertedData.length,
+      new_products_added: newProducts.length,
     });
   } catch (error) {
     console.error("Upload error:", error);
