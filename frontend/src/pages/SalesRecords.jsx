@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
-import { useNavigate } from "react-router-dom";
 
 const API = process.env.REACT_APP_API_URL;
 
@@ -12,7 +11,6 @@ export default function SalesRecords() {
   const [loading, setLoading] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
   const [editForm, setEditForm] = useState({});
-  const navigate = useNavigate();
   const token = localStorage.getItem("token");
   const headers = { Authorization: `Bearer ${token}` };
 
@@ -26,13 +24,20 @@ export default function SalesRecords() {
       if (start) params.push(`startDate=${start}`);
       if (end) params.push(`endDate=${end}`);
       if (params.length) url += `?${params.join("&")}`;
-
       const res = await axios.get(url, { headers });
       setRecords(res.data);
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const regenerateSummary = async () => {
+    try {
+      await axios.post(`${API}/api/insights/regenerate-summary`, {}, { headers });
+    } catch (err) {
+      console.error("Summary regeneration failed:", err.message);
     }
   };
 
@@ -52,6 +57,7 @@ export default function SalesRecords() {
     if (!window.confirm("Delete this record?")) return;
     try {
       await axios.delete(`${API}/api/insights/sales-records/${id}`, { headers });
+      await regenerateSummary();
       fetchRecords(startDate, endDate);
     } catch (err) {
       alert("Delete failed");
@@ -62,6 +68,7 @@ export default function SalesRecords() {
     if (!window.confirm("Delete ALL sales records? This cannot be undone.")) return;
     try {
       await axios.delete(`${API}/api/insights/sales-records`, { headers });
+      await regenerateSummary();
       setRecords([]);
     } catch (err) {
       alert("Failed to clear records");
@@ -89,6 +96,7 @@ export default function SalesRecords() {
         editForm,
         { headers }
       );
+      await regenerateSummary();
       setEditingRecord(null);
       fetchRecords(startDate, endDate);
     } catch (err) {
@@ -148,7 +156,7 @@ export default function SalesRecords() {
         </button>
       </div>
 
-      {/* Summary strip */}
+      {/* Summary Strip */}
       <div className="grid grid-cols-3 gap-4 mb-6">
         <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow text-center">
           <p className="text-sm text-gray-500 dark:text-gray-400">Total Orders</p>
@@ -174,9 +182,9 @@ export default function SalesRecords() {
           {records.map((dateGroup) => (
             <div key={dateGroup._id} className="bg-white dark:bg-gray-800 rounded-2xl shadow overflow-hidden">
 
-              {/* Date row */}
+              {/* Date Row */}
               <div
-                className="flex justify-between items-center px-5 py-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-750 transition"
+                className="flex justify-between items-center px-5 py-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition"
                 onClick={() => toggleDate(dateGroup._id)}
               >
                 <div className="flex items-center gap-4">
@@ -189,46 +197,46 @@ export default function SalesRecords() {
                 </div>
                 <div className="flex items-center gap-6">
                   <div className="text-right">
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Sales</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Sales</p>
                     <p className="font-semibold text-indigo-600 dark:text-indigo-400">₹{dateGroup.totalSales.toLocaleString()}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Profit</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Profit</p>
                     <p className="font-semibold text-green-600 dark:text-green-400">₹{dateGroup.totalProfit.toLocaleString()}</p>
                   </div>
-                  <span className="text-gray-400 text-xl">
+                  <span className="text-gray-400 text-lg">
                     {expandedDates[dateGroup._id] ? "▲" : "▼"}
                   </span>
                 </div>
               </div>
 
-              {/* Expanded records */}
+              {/* Expanded Records */}
               {expandedDates[dateGroup._id] && (
-                <div className="border-t dark:border-gray-700">
+                <div className="border-t dark:border-gray-700 overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50 dark:bg-gray-700">
                       <tr>
                         {["Sale ID", "Customer", "Product", "Category", "Qty", "Price", "Total", "Region", "Payment", "Actions"].map(h => (
-                          <th key={h} className="px-3 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-300">{h}</th>
+                          <th key={h} className="px-3 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 whitespace-nowrap">{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody className="divide-y dark:divide-gray-700">
                       {dateGroup.records.map((rec) => (
-                        <tr key={rec._id} className="hover:bg-gray-50 dark:hover:bg-gray-750">
-                          <td className="px-3 py-2 text-gray-700 dark:text-gray-300">{rec.saleId}</td>
-                          <td className="px-3 py-2 text-gray-700 dark:text-gray-300">{rec.customerName}</td>
-                          <td className="px-3 py-2 text-gray-700 dark:text-gray-300">{rec.productName}</td>
-                          <td className="px-3 py-2 text-gray-700 dark:text-gray-300">{rec.category}</td>
+                        <tr key={rec._id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                          <td className="px-3 py-2 text-gray-700 dark:text-gray-300 whitespace-nowrap">{rec.saleId}</td>
+                          <td className="px-3 py-2 text-gray-700 dark:text-gray-300 whitespace-nowrap">{rec.customerName}</td>
+                          <td className="px-3 py-2 text-gray-700 dark:text-gray-300 whitespace-nowrap">{rec.productName}</td>
+                          <td className="px-3 py-2 text-gray-700 dark:text-gray-300 whitespace-nowrap">{rec.category}</td>
                           <td className="px-3 py-2 text-gray-700 dark:text-gray-300">{rec.quantity}</td>
-                          <td className="px-3 py-2 text-gray-700 dark:text-gray-300">₹{rec.price}</td>
-                          <td className="px-3 py-2 font-semibold text-gray-800 dark:text-white">₹{rec.totalAmount?.toLocaleString()}</td>
+                          <td className="px-3 py-2 text-gray-700 dark:text-gray-300">₹{rec.price?.toLocaleString()}</td>
+                          <td className="px-3 py-2 font-semibold text-gray-800 dark:text-white whitespace-nowrap">₹{rec.totalAmount?.toLocaleString()}</td>
                           <td className="px-3 py-2 text-gray-700 dark:text-gray-300">{rec.region}</td>
-                          <td className="px-3 py-2 text-gray-700 dark:text-gray-300">{rec.paymentMethod}</td>
+                          <td className="px-3 py-2 text-gray-700 dark:text-gray-300 whitespace-nowrap">{rec.paymentMethod}</td>
                           <td className="px-3 py-2 flex gap-2">
                             <button
                               onClick={() => handleEditOpen(rec)}
-                              className="bg-yellow-400 hover:bg-yellow-500 text-white px-2 py-1 rounded-lg text-xs"
+                              className="bg-yellow-400 hover:bg-yellow-500 text-white px-2 py-1 rounded-lg text-xs whitespace-nowrap"
                             >Edit</button>
                             <button
                               onClick={() => handleDelete(rec._id)}

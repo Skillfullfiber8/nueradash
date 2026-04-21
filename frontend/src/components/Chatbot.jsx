@@ -33,7 +33,10 @@ export default function Chatbot() {
       );
       setMessages(prev => [...prev, { role: "assistant", content: res.data.reply }]);
     } catch (err) {
-      setMessages(prev => [...prev, { role: "assistant", content: "Sorry, I couldn't process that. Please try again." }]);
+      setMessages(prev => [...prev, {
+        role: "assistant",
+        content: "Sorry, I couldn't process that. Please try again."
+      }]);
     } finally {
       setLoading(false);
     }
@@ -65,7 +68,8 @@ export default function Chatbot() {
 
       {/* Chat Panel */}
       {open && (
-        <div className="fixed bottom-24 right-6 z-50 w-96 max-w-[calc(100vw-2rem)] bg-white dark:bg-gray-900 rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-gray-200 dark:border-gray-700"
+        <div
+          className="fixed bottom-24 right-6 z-50 w-96 max-w-[calc(100vw-2rem)] bg-white dark:bg-gray-900 rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-gray-200 dark:border-gray-700"
           style={{ height: "520px" }}
         >
           {/* Header */}
@@ -93,8 +97,8 @@ export default function Chatbot() {
 
             {loading && (
               <div className="flex justify-start">
-                <div className="bg-gray-100 dark:bg-gray-800 px-4 py-2 rounded-2xl rounded-bl-sm">
-                  <div className="flex gap-1 items-center h-5">
+                <div className="bg-gray-100 dark:bg-gray-800 px-4 py-3 rounded-2xl rounded-bl-sm">
+                  <div className="flex gap-1 items-center">
                     <span className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
                     <span className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
                     <span className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
@@ -105,13 +109,13 @@ export default function Chatbot() {
             <div ref={bottomRef} />
           </div>
 
-          {/* Suggested Questions — show only at start */}
+          {/* Suggested Questions */}
           {messages.length === 1 && (
             <div className="px-4 pb-2 flex flex-wrap gap-2">
               {suggestedQuestions.map((q, i) => (
                 <button
                   key={i}
-                  onClick={() => { setInput(q); }}
+                  onClick={() => setInput(q)}
                   className="text-xs bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 px-3 py-1 rounded-full hover:bg-indigo-100 dark:hover:bg-indigo-900 transition"
                 >
                   {q}
