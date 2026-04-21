@@ -22,7 +22,7 @@ router.post("/upload-sales-customer", verifyToken, upload.single("file"), async 
     const productMaster = await ProductMaster.find({
       userId: new mongoose.Types.ObjectId(req.user.id)
     });
-    
+
     const csvText = fs.readFileSync(req.file.path, "utf8");
     const convertedData = convertCSV(csvText, productMaster).map(row => ({
       ...row,
@@ -30,6 +30,15 @@ router.post("/upload-sales-customer", verifyToken, upload.single("file"), async 
     }));
 
     await SalesCustomer.insertMany(convertedData);
+
+    // After SalesCustomer.insertMany(convertedData)
+    try {
+      await generateAndSaveSummary(req.user.id);
+      console.log("✅ AI Summary generated");
+    } catch (summaryError) {
+      console.error("❌ AI Summary failed:", summaryError.message);
+  // Don't fail the upload just because summary failed
+    }
 
     // Generate AI summary after upload
     await generateAndSaveSummary(req.user.id);
