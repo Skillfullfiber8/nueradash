@@ -4,6 +4,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend, LineChart, Line
 } from "recharts";
+import Chatbot from "../components/Chatbot";
 
 const COLORS = ["#6366f1", "#22d3ee", "#f59e0b", "#10b981", "#f43f5e", "#8b5cf6", "#ec4899"];
 
@@ -245,7 +246,7 @@ function Dashboard() {
           </div>
         </ChartCard>
       </div>
-
+    <Chatbot />
     </div>
   );
 }

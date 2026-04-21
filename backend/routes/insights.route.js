@@ -303,4 +303,95 @@ router.delete("/sales-records", verifyToken, async (req, res) => {
   }
 });
 
+// Chatbot route
+router.post("/chat", verifyToken, async (req, res) => {
+  const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+  try {
+    const { message, history } = req.body;
+    const userId = new mongoose.Types.ObjectId(req.user.id);
+
+    // Fetch user's data as context
+    const [summary, topProducts, regions, categories, topCustomers, trend] = await Promise.all([
+      SalesCustomer.aggregate([
+        { $match: { userId } },
+        { $group: { _id: null, totalSales: { $sum: "$totalAmount" }, totalProfit: { $sum: "$profitMargin" }, count: { $sum: 1 } } },
+      ]),
+      SalesCustomer.aggregate([
+        { $match: { userId } },
+        { $group: { _id: "$productName", totalRevenue: { $sum: "$totalAmount" }, totalProfit: { $sum: "$profitMargin" }, units: { $sum: "$quantity" } } },
+        { $sort: { totalRevenue: -1 } }, { $limit: 10 },
+      ]),
+      SalesCustomer.aggregate([
+        { $match: { userId } },
+        { $group: { _id: "$region", totalSales: { $sum: "$totalAmount" } } },
+        { $sort: { totalSales: -1 } },
+      ]),
+      SalesCustomer.aggregate([
+        { $match: { userId } },
+        { $group: { _id: "$category", totalSales: { $sum: "$totalAmount" }, totalProfit: { $sum: "$profitMargin" } } },
+        { $sort: { totalSales: -1 } },
+      ]),
+      SalesCustomer.aggregate([
+        { $match: { userId } },
+        { $group: { _id: "$customerName", totalSpent: { $sum: "$totalAmount" }, orders: { $sum: 1 } } },
+        { $sort: { totalSpent: -1 } }, { $limit: 10 },
+      ]),
+      SalesCustomer.aggregate([
+        { $match: { userId, date: { $ne: null } } },
+        { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$date" } }, totalSales: { $sum: "$totalAmount" } } },
+        { $sort: { _id: 1 } },
+      ]),
+    ]);
+
+    const context = `
+You are a smart business analytics assistant for Nueradash. You have access to the user's sales data below. Answer questions clearly and concisely based only on this data. If the answer is not in the data, say so.
+
+SALES DATA:
+- Total Sales: ₹${summary[0]?.totalSales || 0}
+- Total Profit: ₹${summary[0]?.totalProfit || 0}
+- Total Orders: ${summary[0]?.count || 0}
+
+TOP PRODUCTS (by revenue):
+${topProducts.map(p => `  • ${p._id}: Revenue ₹${p.totalRevenue}, Profit ₹${p.totalProfit}, Units sold: ${p.units}`).join("\n")}
+
+SALES BY REGION:
+${regions.map(r => `  • ${r._id}: ₹${r.totalSales}`).join("\n")}
+
+SALES BY CATEGORY:
+${categories.map(c => `  • ${c._id}: Revenue ₹${c.totalSales}, Profit ₹${c.totalProfit}`).join("\n")}
+
+TOP CUSTOMERS:
+${topCustomers.map(c => `  • ${c._id}: Spent ₹${c.totalSpent}, Orders: ${c.orders}`).join("\n")}
+
+DAILY SALES TREND:
+${trend.map(t => `  • ${t._id}: ₹${t.totalSales}`).join("\n")}
+
+Answer in 2-4 sentences. Be direct and helpful. Use ₹ for currency. Do not use markdown formatting.
+    `;
+
+    // Build messages with history
+    const messages = [
+      { role: "system", content: context },
+      ...(history || []).slice(-6).map(h => ({
+        role: h.role,
+        content: h.content
+      })),
+      { role: "user", content: message }
+    ];
+
+    const completion = await groq.chat.completions.create({
+      model: "llama-3.3-70b-versatile",
+      messages,
+      temperature: 0.5,
+      max_tokens: 300,
+    });
+
+    res.json({ reply: completion.choices[0].message.content.trim() });
+
+  } catch (err) {
+    console.error("Chat error:", err.message);
+    res.status(500).json({ message: "Chat failed", error: err.message });
+  }
+});
+
 export default router;
