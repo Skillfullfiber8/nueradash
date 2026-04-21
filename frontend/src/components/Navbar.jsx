@@ -20,6 +20,7 @@ export default function Navbar() {
     { label: "📦 Products", path: "/products" },
     { label: "⬆️ Upload CSV", path: "/upload" },
     { label: "🤖 Smart Import", path: "/smart-import" },
+    { label: "📅 Sales Records", path: "/sales-records" },
   ];
 
   if (!token) return null;

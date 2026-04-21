@@ -225,4 +225,82 @@ router.get("/ai-summary", verifyToken, async (req, res) => {
   }
 });
 
+
+// Get sales grouped by date (with optional date filter)
+router.get("/sales-records", verifyToken, async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    const match = { userId: new mongoose.Types.ObjectId(req.user.id) };
+
+    if (startDate || endDate) {
+      match.date = {};
+      if (startDate) match.date.$gte = new Date(startDate);
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        match.date.$lte = end;
+      }
+    }
+
+    const result = await SalesCustomer.aggregate([
+      { $match: match },
+      {
+        $group: {
+          _id: { $dateToString: { format: "%Y-%m-%d", date: "$date" } },
+          orders: { $sum: 1 },
+          totalSales: { $sum: "$totalAmount" },
+          totalProfit: { $sum: "$profitMargin" },
+          records: { $push: "$$ROOT" },
+        },
+      },
+      { $sort: { _id: -1 } },
+    ]);
+
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ message: "Error", error: err.message });
+  }
+});
+
+// Update a single sales record
+router.put("/sales-records/:id", verifyToken, async (req, res) => {
+  try {
+    const updated = await SalesCustomer.findOneAndUpdate(
+      { _id: req.params.id, userId: new mongoose.Types.ObjectId(req.user.id) },
+      req.body,
+      { new: true }
+    );
+    if (!updated) return res.status(404).json({ message: "Record not found" });
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ message: "Error", error: err.message });
+  }
+});
+
+// Delete a single sales record
+router.delete("/sales-records/:id", verifyToken, async (req, res) => {
+  try {
+    const deleted = await SalesCustomer.findOneAndDelete({
+      _id: req.params.id,
+      userId: new mongoose.Types.ObjectId(req.user.id)
+    });
+    if (!deleted) return res.status(404).json({ message: "Record not found" });
+    res.json({ message: "Deleted" });
+  } catch (err) {
+    res.status(500).json({ message: "Error", error: err.message });
+  }
+});
+
+// Delete all sales records for this user
+router.delete("/sales-records", verifyToken, async (req, res) => {
+  try {
+    await SalesCustomer.deleteMany({
+      userId: new mongoose.Types.ObjectId(req.user.id)
+    });
+    res.json({ message: "All records deleted" });
+  } catch (err) {
+    res.status(500).json({ message: "Error", error: err.message });
+  }
+});
+
 export default router;

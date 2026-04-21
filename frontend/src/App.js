@@ -7,6 +7,7 @@ import UploadCSV from "./components/UploadCSV";
 import Dashboard from "./pages/Dashboard";
 import ProductMaster from "./pages/ProductMaster";
 import SmartImport from "./pages/SmartImport";
+import SalesRecords from "./pages/SalesRecords";
 
 function App() {
   const token = localStorage.getItem("token");
@@ -24,6 +25,7 @@ function App() {
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/products" element={<ProductMaster />} />
             <Route path="/smart-import" element={<SmartImport />} />
+            <Route path="/sales-records" element={<SalesRecords />} />
           </Routes>
         </div>
       </BrowserRouter>
