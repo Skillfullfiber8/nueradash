@@ -19,7 +19,10 @@ router.post("/upload-sales-customer", verifyToken, upload.single("file"), async 
       return res.status(500).json({ message: "Database not connected" });
     }
 
-    const productMaster = await ProductMaster.find();
+    const productMaster = await ProductMaster.find({
+      userId: new mongoose.Types.ObjectId(req.user.id)
+    });
+    
     const csvText = fs.readFileSync(req.file.path, "utf8");
     const convertedData = convertCSV(csvText, productMaster).map(row => ({
       ...row,

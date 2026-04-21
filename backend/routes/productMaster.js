@@ -1,23 +1,29 @@
 import express from "express";
+import mongoose from "mongoose";
 import ProductMaster from "../models/ProductMaster.js";
 import { verifyToken } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-// Get all
+// Get all — only this user's products
 router.get("/", verifyToken, async (req, res) => {
   try {
-    const products = await ProductMaster.find();
+    const products = await ProductMaster.find({
+      userId: new mongoose.Types.ObjectId(req.user.id)
+    });
     res.json(products);
   } catch (err) {
     res.status(500).json({ message: "Error", error: err.message });
   }
 });
 
-// Add one
+// Add one — attach userId
 router.post("/", verifyToken, async (req, res) => {
   try {
-    const product = new ProductMaster(req.body);
+    const product = new ProductMaster({
+      ...req.body,
+      userId: req.user.id,
+    });
     await product.save();
     res.json(product);
   } catch (err) {
@@ -25,20 +31,29 @@ router.post("/", verifyToken, async (req, res) => {
   }
 });
 
-// Update one
+// Update one — verify ownership
 router.put("/:id", verifyToken, async (req, res) => {
   try {
-    const updated = await ProductMaster.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const updated = await ProductMaster.findOneAndUpdate(
+      { _id: req.params.id, userId: new mongoose.Types.ObjectId(req.user.id) },
+      req.body,
+      { new: true }
+    );
+    if (!updated) return res.status(404).json({ message: "Product not found" });
     res.json(updated);
   } catch (err) {
     res.status(500).json({ message: "Error", error: err.message });
   }
 });
 
-// Delete one
+// Delete one — verify ownership
 router.delete("/:id", verifyToken, async (req, res) => {
   try {
-    await ProductMaster.findByIdAndDelete(req.params.id);
+    const deleted = await ProductMaster.findOneAndDelete({
+      _id: req.params.id,
+      userId: new mongoose.Types.ObjectId(req.user.id)
+    });
+    if (!deleted) return res.status(404).json({ message: "Product not found" });
     res.json({ message: "Deleted" });
   } catch (err) {
     res.status(500).json({ message: "Error", error: err.message });

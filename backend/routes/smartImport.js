@@ -99,7 +99,9 @@ router.post("/import", verifyToken, async (req, res) => {
     const parsed = Papa.parse(csvText, { header: true, skipEmptyLines: true });
     const rows = parsed.data;
 
-    const productMaster = await ProductMaster.find();
+    const productMaster = await ProductMaster.find({
+      userId: new mongoose.Types.ObjectId(req.user.id)
+    });
     console.log("ProductMaster count in smart import:", productMaster.length);
 
     const productMap = {};
