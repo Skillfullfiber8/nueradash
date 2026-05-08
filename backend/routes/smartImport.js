@@ -25,7 +25,12 @@ router.post("/analyze", verifyToken, upload.single("file"), async (req, res) => 
     if (!req.file) return res.status(400).json({ message: "No file uploaded" });
 
     const csvText = fs.readFileSync(req.file.path, "utf8");
-    const parsed = Papa.parse(csvText, { header: true, skipEmptyLines: true });
+    const parsed = Papa.parse(csvText, {
+      header: true,
+      skipEmptyLines: true,
+      transformHeader: (header) => header.trim(),
+      transform: (value) => value.trim(),
+    });
     const uploadedColumns = parsed.meta.fields;
     const sampleRows = parsed.data.slice(0, 3);
 
@@ -90,15 +95,20 @@ router.post("/import", verifyToken, async (req, res) => {
       return res.status(400).json({ message: "Missing filePath or mapping" });
     }
 
-    // Check MongoDB connection
     if (mongoose.connection.readyState !== 1) {
       return res.status(500).json({ message: "Database not connected" });
     }
 
     const csvText = fs.readFileSync(filePath, "utf8");
-    const parsed = Papa.parse(csvText, { header: true, skipEmptyLines: true });
+    const parsed = Papa.parse(csvText, {
+      header: true,
+      skipEmptyLines: true,
+      transformHeader: (header) => header.trim(),
+      transform: (value) => value.trim(),
+    });
     const rows = parsed.data;
 
+    // Fetch product master for enrichment
     const productMaster = await ProductMaster.find({
       userId: new mongoose.Types.ObjectId(req.user.id)
     });
@@ -114,7 +124,7 @@ router.post("/import", verifyToken, async (req, res) => {
       const mapped = {};
       for (const [targetCol, sourceCol] of Object.entries(mapping)) {
         if (sourceCol && sourceCol !== "skip") {
-          mapped[targetCol] = row[sourceCol] || "";
+          mapped[targetCol] = (row[sourceCol] || "").toString().trim().replace(/^["']|["']$/g, "");
         }
       }
 
@@ -149,12 +159,49 @@ router.post("/import", verifyToken, async (req, res) => {
       };
     });
 
+    // ── Auto-detect and add new products ─────────────────────
+    const existingProductIds = new Set(productMaster.map(p => p.productId));
+    const newProductsMap = {};
+
+    standardized.forEach(row => {
+      if (
+        row.productId &&
+        !existingProductIds.has(row.productId) &&
+        !newProductsMap[row.productId]
+      ) {
+        newProductsMap[row.productId] = {
+          userId: req.user.id,
+          productId: row.productId,
+          productName: row.productName || "",
+          category: row.category || "",
+          costPrice: 0,
+          sellingPrice: row.price || 0,
+        };
+      }
+    });
+
+    const newProducts = Object.values(newProductsMap);
+    if (newProducts.length > 0) {
+      await ProductMaster.insertMany(newProducts);
+      console.log(`✅ ${newProducts.length} new products added to ProductMaster`);
+    }
+    // ─────────────────────────────────────────────────────────
+
     await SalesCustomer.insertMany(standardized);
-    await generateAndSaveSummary(req.user.id);
+    console.log("✅ Sales data saved:", standardized.length, "rows");
+
+    // Generate AI summary
+    try {
+      await generateAndSaveSummary(req.user.id);
+      console.log("✅ AI Summary generated");
+    } catch (summaryError) {
+      console.error("❌ AI Summary failed:", summaryError.message);
+    }
 
     res.json({
       message: "Data imported successfully!",
       rows_saved: standardized.length,
+      new_products_added: newProducts.length,
     });
 
   } catch (err) {

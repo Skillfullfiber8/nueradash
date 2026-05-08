@@ -8,6 +8,8 @@ const TARGET_COLUMNS = [
   "Quantity", "Price", "Date", "Location", "Payment Method"
 ];
 
+const API = process.env.REACT_APP_API_URL;
+
 export default function SmartImport() {
   const [file, setFile] = useState(null);
   const [step, setStep] = useState(1);
@@ -27,7 +29,7 @@ export default function SmartImport() {
     formData.append("file", file);
     try {
       const res = await axios.post(
-        `${process.env.REACT_APP_API_URL}/api/smart-import/analyze`,
+        `${API}/api/smart-import/analyze`,
         formData,
         { headers: { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" } }
       );
@@ -38,6 +40,7 @@ export default function SmartImport() {
       setStep(2);
     } catch (err) {
       alert("Failed to analyze file");
+      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -47,14 +50,21 @@ export default function SmartImport() {
     setLoading(true);
     try {
       const res = await axios.post(
-        `${process.env.REACT_APP_API_URL}/api/smart-import/import`,
+        `${API}/api/smart-import/import`,
         { filePath, mapping },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      setMessage(`✅ ${res.data.message} (${res.data.rows_saved} rows saved)`);
+      setMessage(
+        `✅ ${res.data.message} (${res.data.rows_saved} rows saved${
+          res.data.new_products_added > 0
+            ? `, ${res.data.new_products_added} new product(s) added to Product Master — update cost prices for accurate profit calculation`
+            : ""
+        })`
+      );
       setStep(3);
     } catch (err) {
       alert("Import failed");
+      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -69,7 +79,7 @@ export default function SmartImport() {
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow p-8 max-w-lg mx-auto">
           <h2 className="text-lg font-semibold text-gray-700 dark:text-gray-200 mb-2">Upload any CSV file</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-            AI will analyze your columns and suggest mappings automatically.
+            AI will analyze your columns and suggest mappings automatically. New products will be added to your Product Master.
           </p>
           <label className="block w-full border-2 border-dashed border-indigo-300 dark:border-indigo-700 rounded-xl p-6 text-center cursor-pointer hover:border-indigo-500 transition mb-4">
             <input type="file" accept=".csv" onChange={(e) => setFile(e.target.files[0])} className="hidden" />
@@ -119,7 +129,7 @@ export default function SmartImport() {
               <thead className="bg-gray-100 dark:bg-gray-700">
                 <tr>
                   {uploadedColumns.map((col) => (
-                    <th key={col} className="px-3 py-2 text-left text-gray-600 dark:text-gray-300">{col}</th>
+                    <th key={col} className="px-3 py-2 text-left text-gray-600 dark:text-gray-300 whitespace-nowrap">{col}</th>
                   ))}
                 </tr>
               </thead>
@@ -127,7 +137,7 @@ export default function SmartImport() {
                 {sampleRows.map((row, i) => (
                   <tr key={i}>
                     {uploadedColumns.map((col) => (
-                      <td key={col} className="px-3 py-2 text-gray-700 dark:text-gray-300">{row[col]}</td>
+                      <td key={col} className="px-3 py-2 text-gray-700 dark:text-gray-300 whitespace-nowrap">{row[col]}</td>
                     ))}
                   </tr>
                 ))}
@@ -148,13 +158,21 @@ export default function SmartImport() {
       {/* Step 3 */}
       {step === 3 && (
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow p-8 max-w-lg mx-auto text-center">
-          <p className="text-xl font-semibold text-green-500 mb-6">{message}</p>
-          <button
-            onClick={() => navigate("/dashboard")}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-2 rounded-xl font-semibold transition"
-          >
-            Go to Dashboard
-          </button>
+          <p className="text-lg font-semibold text-green-500 mb-6">{message}</p>
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={() => navigate("/dashboard")}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-2 rounded-xl font-semibold transition"
+            >
+              Go to Dashboard
+            </button>
+            <button
+              onClick={() => navigate("/products")}
+              className="bg-yellow-400 hover:bg-yellow-500 text-white px-8 py-2 rounded-xl font-semibold transition"
+            >
+              Update Product Cost Prices
+            </button>
+          </div>
         </div>
       )}
     </div>
