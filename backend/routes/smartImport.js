@@ -1,0 +1,208 @@
+import express from "express";
+import multer from "multer";
+import fs from "fs";
+import Papa from "papaparse";
+import { generateJson } from "../services/aiService.js";
+import mongoose from "mongoose";
+import SalesCustomer from "../models/SalesCustomer.js";
+import ProductMaster from "../models/ProductMaster.js";
+import { verifyToken } from "../middleware/authMiddleware.js";
+import { generateAndSaveSummary } from "../services/generateSummary.js";
+
+const router = express.Router();
+const upload = multer({ dest: "uploads/" });
+
+const TARGET_COLUMNS = [
+  "Sale ID", "Customer Name", "Region", "Customer Email",
+  "Customer Phone", "Product ID", "Product Name", "Category",
+  "Quantity", "Price", "Date", "Location", "Payment Method"
+];
+
+// Step 1 — Upload CSV and get AI column mapping suggestions
+router.post("/analyze", verifyToken, upload.single("file"), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+
+    const csvText = fs.readFileSync(req.file.path, "utf8");
+    const parsed = Papa.parse(csvText, {
+      header: true,
+      skipEmptyLines: true,
+      transformHeader: (header) => header.trim(),
+      transform: (value) => value.trim(),
+    });
+    const uploadedColumns = parsed.meta.fields;
+    const sampleRows = parsed.data.slice(0, 3);
+
+    const prompt = `
+You are a data mapping assistant. The user has uploaded a CSV with these columns:
+${JSON.stringify(uploadedColumns)}
+
+Sample data:
+${JSON.stringify(sampleRows, null, 2)}
+
+Map each uploaded column to one of these target columns (or "skip" if no match):
+${JSON.stringify(TARGET_COLUMNS)}
+
+Respond ONLY with a valid JSON object like this:
+{
+  "Sale ID": "uploaded_column_name or skip",
+  "Customer Name": "uploaded_column_name or skip",
+  "Region": "uploaded_column_name or skip",
+  "Customer Email": "uploaded_column_name or skip",
+  "Customer Phone": "uploaded_column_name or skip",
+  "Product ID": "uploaded_column_name or skip",
+  "Product Name": "uploaded_column_name or skip",
+  "Category": "uploaded_column_name or skip",
+  "Quantity": "uploaded_column_name or skip",
+  "Price": "uploaded_column_name or skip",
+  "Date": "uploaded_column_name or skip",
+  "Location": "uploaded_column_name or skip",
+  "Payment Method": "uploaded_column_name or skip"
+}
+No explanation, no markdown, only the JSON object.
+    `;
+
+    const mapping = await generateJson({
+      systemPrompt: "You are a data mapping assistant. You must respond ONLY with a valid raw JSON object. No explanation, no markdown.",
+      prompt,
+    });
+
+    res.json({
+      uploadedColumns,
+      mapping,
+      sampleRows,
+      filePath: req.file.path,
+      fileName: req.file.filename,
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Error analyzing file", error: err.message });
+  }
+});
+
+// Step 2 — Apply confirmed mapping and save to DB
+router.post("/import", verifyToken, async (req, res) => {
+  try {
+    const { filePath, mapping } = req.body;
+
+    if (!filePath || !mapping) {
+      return res.status(400).json({ message: "Missing filePath or mapping" });
+    }
+
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(500).json({ message: "Database not connected" });
+    }
+
+    const csvText = fs.readFileSync(filePath, "utf8");
+    const parsed = Papa.parse(csvText, {
+      header: true,
+      skipEmptyLines: true,
+      transformHeader: (header) => header.trim(),
+      transform: (value) => value.trim(),
+    });
+    const rows = parsed.data;
+
+    // Fetch product master for enrichment
+    const productMaster = await ProductMaster.find({
+      userId: new mongoose.Types.ObjectId(req.user.id)
+    });
+    console.log("ProductMaster count in smart import:", productMaster.length);
+
+    const productMap = {};
+    productMaster.forEach((p) => {
+      productMap[p.productId] = p;
+      console.log("Mapped:", p.productId, "costPrice:", p.costPrice);
+    });
+
+    const standardized = rows.map((row, index) => {
+      const mapped = {};
+      for (const [targetCol, sourceCol] of Object.entries(mapping)) {
+        if (sourceCol && sourceCol !== "skip") {
+          mapped[targetCol] = (row[sourceCol] || "").toString().trim().replace(/^["']|["']$/g, "");
+        }
+      }
+
+      const product = productMap[mapped["Product ID"]] || {};
+      console.log("Row Product ID:", mapped["Product ID"], "Found:", product.productName || "NOT FOUND");
+
+      const quantity = Number(mapped["Quantity"]) || 0;
+      const price = Number(mapped["Price"]) || product.sellingPrice || 0;
+      const costPrice = product.costPrice || 0;
+      const sellingPrice = product.sellingPrice || price;
+      const profitPerUnit = sellingPrice - costPrice;
+
+      return {
+        saleId: mapped["Sale ID"] || `AUTO-${index + 1}`,
+        customerName: mapped["Customer Name"] || "",
+        region: mapped["Region"] || "",
+        email: mapped["Customer Email"] || "",
+        phone: mapped["Customer Phone"] || "",
+        productId: mapped["Product ID"] || "",
+        productName: mapped["Product Name"] || product.productName || "",
+        category: mapped["Category"] || product.category || "",
+        quantity,
+        price,
+        totalAmount: quantity * price,
+        date: mapped["Date"] ? new Date(mapped["Date"]) : null,
+        location: mapped["Location"] || "",
+        paymentMethod: mapped["Payment Method"] || "",
+        costPrice,
+        sellingPrice,
+        profitMargin: profitPerUnit * quantity,
+        userId: req.user.id,
+      };
+    });
+
+    // ── Auto-detect and add new products ─────────────────────
+    const existingProductIds = new Set(productMaster.map(p => p.productId));
+    const newProductsMap = {};
+
+    standardized.forEach(row => {
+      if (
+        row.productId &&
+        !existingProductIds.has(row.productId) &&
+        !newProductsMap[row.productId]
+      ) {
+        newProductsMap[row.productId] = {
+          userId: req.user.id,
+          productId: row.productId,
+          productName: row.productName || "",
+          category: row.category || "",
+          costPrice: 0,
+          sellingPrice: row.price || 0,
+        };
+      }
+    });
+
+    const newProducts = Object.values(newProductsMap);
+    if (newProducts.length > 0) {
+      await ProductMaster.insertMany(newProducts);
+      console.log(`✅ ${newProducts.length} new products added to ProductMaster`);
+    }
+    // ─────────────────────────────────────────────────────────
+
+    await SalesCustomer.insertMany(standardized);
+    console.log("✅ Sales data saved:", standardized.length, "rows");
+
+    // Generate AI summary
+    try {
+      await generateAndSaveSummary(req.user.id);
+      console.log("✅ AI Summary generated");
+    } catch (summaryError) {
+      console.error("❌ AI Summary failed:", summaryError.message);
+    }
+
+    res.json({
+      message: "Data imported successfully!",
+      rows_saved: standardized.length,
+      new_products_added: newProducts.length,
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Import failed", error: err.message });
+  }
+});
+
+export default router;
