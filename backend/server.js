@@ -96,6 +96,7 @@ app.get("/api/health", (req, res) => {
     status: "ok",
     database: mongoose.connection.readyState === 1 ? "connected" : "disconnected",
     geminiConfigured: !!(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY),
+    geminiModel: process.env.GEMINI_MODEL || "gemini-2.0-flash",
     timestamp: new Date().toISOString()
   });
 });

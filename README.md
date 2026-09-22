@@ -213,9 +213,11 @@ cd nueradash
 | Variable | Required | Description | Example |
 |---|---|---|---|
 | `PORT` | No | Express server listener port (defaults to 5000) | `5000` |
-| `MONGO_URI` | **Yes** | MongoDB connection string (Atlas or Local) | `mongodb://localhost:27017/nueradash` |
+| `MONGO_URI` | **Yes** | MongoDB connection string (Atlas or Local) | `mongodb+srv://user:pass@cluster.mongodb.net/nueradash` |
 | `JWT_SECRET` | **Yes** | Secret key for signing JSON Web Tokens | `supersecretkey123` |
 | `GEMINI_API_KEY` | **Yes** | API key from Google AI Studio | `AIzaSy...` |
+| `GEMINI_MODEL` | No | Model name (defaults to `gemini-2.0-flash`) | `gemini-2.0-flash` |
+| `FRONTEND_URL` | No | Production frontend origin for CORS | `https://your-frontend.onrender.com` |
 
 ---
 

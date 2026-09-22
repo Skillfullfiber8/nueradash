@@ -1,11 +1,20 @@
 import { GoogleGenAI } from "@google/genai";
 
-// Primary and fallback models for Google Gemini
-const GEMINI_MODELS = [
-  "gemini-2.5-flash",
-  "gemini-2.0-flash",
-  "gemini-1.5-flash",
-];
+/**
+ * Build list of candidate models with process.env.GEMINI_MODEL as primary
+ */
+function getCandidateModels() {
+  const envModel = process.env.GEMINI_MODEL?.trim();
+  const models = [
+    envModel,
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-lite",
+    "gemini-1.5-flash-latest",
+    "gemini-1.5-flash",
+    "gemini-1.5-pro",
+  ].filter(Boolean);
+  return Array.from(new Set(models));
+}
 
 /**
  * Helper to get an initialized GoogleGenAI client instance
@@ -22,10 +31,14 @@ function getGeminiClient() {
 }
 
 /**
- * Sanitize and format Gemini errors safely without leaking sensitive information
+ * Sanitize and format Gemini errors safely without leaking sensitive information or API keys
  */
 function formatGeminiError(err) {
-  const message = err?.message || String(err);
+  let message = err?.message || String(err);
+  // Redact potential API keys or sensitive token strings from error text
+  message = message.replace(/AIzaSy[A-Za-z0-9_-]{33}/g, "[REDACTED_API_KEY]");
+  message = message.replace(/key=[A-Za-z0-9_-]+/gi, "key=[REDACTED]");
+
   if (message.includes("API_KEY_INVALID") || message.includes("401") || message.includes("API key not valid")) {
     const authErr = new Error("Gemini API authentication failed: Invalid or expired GEMINI_API_KEY.");
     authErr.status = 401;
@@ -48,14 +61,17 @@ function formatGeminiError(err) {
 }
 
 /**
- * Call Gemini API with automatic model fallback in case of rate limits or model availability
+ * Call Gemini API with automatic model fallback across candidate models
  */
 async function callGemini(contents, options = {}) {
   const ai = getGeminiClient();
+  const candidateModels = getCandidateModels();
   let lastError = null;
 
-  for (const model of GEMINI_MODELS) {
+  for (const model of candidateModels) {
     try {
+      console.log(`[GEMINI] Calling Gemini API (model: ${model})...`);
+
       const config = {
         temperature: options.temperature ?? 0.7,
         maxOutputTokens: options.maxTokens ?? 1000,
@@ -80,18 +96,19 @@ async function callGemini(contents, options = {}) {
       });
 
       if (response && response.text) {
+        console.log(`[GEMINI] Successfully generated content using model: ${model}`);
         return response.text.trim();
       }
     } catch (err) {
       const formatted = formatGeminiError(err);
       lastError = formatted;
 
-      // If missing API key or auth failed, no need to cycle through fallback models
+      // If missing API key or auth failed, do not cycle through further models
       if (formatted.code === "MISSING_GEMINI_API_KEY" || formatted.code === "GEMINI_AUTH_ERROR") {
         throw formatted;
       }
 
-      console.warn(`[Gemini warning] Model ${model} failed: ${err.message}. Trying next fallback...`);
+      console.warn(`[GEMINI] Model candidate "${model}" failed: ${formatted.message}. Attempting fallback...`);
     }
   }
 
@@ -175,3 +192,4 @@ export async function generateJson({ prompt, systemPrompt, responseSchema }) {
     throw formatted;
   }
 }
+
