@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
+import { useNavigate } from "react-router-dom";
 
-const API = process.env.REACT_APP_API_URL;
+const API = process.env.REACT_APP_API_URL || "http://localhost:5000";
 
 export default function SalesRecords() {
   const [records, setRecords] = useState([]);
@@ -11,12 +12,22 @@ export default function SalesRecords() {
   const [loading, setLoading] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
   const [editForm, setEditForm] = useState({});
-  const token = localStorage.getItem("token");
-  const headers = { Authorization: `Bearer ${token}` };
+  const navigate = useNavigate();
+
+  const getHeaders = () => {
+    const token = localStorage.getItem("token");
+    return token ? { Authorization: `Bearer ${token}` } : null;
+  };
 
   useEffect(() => { fetchRecords(); }, []);
 
   const fetchRecords = async (start = "", end = "") => {
+    const headers = getHeaders();
+    if (!headers) {
+      navigate("/login");
+      return;
+    }
+
     setLoading(true);
     try {
       let url = `${API}/api/insights/sales-records`;
@@ -28,12 +39,19 @@ export default function SalesRecords() {
       setRecords(res.data);
     } catch (err) {
       console.error(err);
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        localStorage.removeItem("token");
+        alert("Your session has expired. Please log in again.");
+        navigate("/login");
+      }
     } finally {
       setLoading(false);
     }
   };
 
   const regenerateSummary = async () => {
+    const headers = getHeaders();
+    if (!headers) return;
     try {
       await axios.post(`${API}/api/insights/regenerate-summary`, {}, { headers });
     } catch (err) {
@@ -55,6 +73,8 @@ export default function SalesRecords() {
 
   const handleDelete = async (id) => {
     if (!window.confirm("Delete this record?")) return;
+    const headers = getHeaders();
+    if (!headers) return navigate("/login");
     try {
       await axios.delete(`${API}/api/insights/sales-records/${id}`, { headers });
       await regenerateSummary();
@@ -66,6 +86,8 @@ export default function SalesRecords() {
 
   const handleClearAll = async () => {
     if (!window.confirm("Delete ALL sales records? This cannot be undone.")) return;
+    const headers = getHeaders();
+    if (!headers) return navigate("/login");
     try {
       await axios.delete(`${API}/api/insights/sales-records`, { headers });
       await regenerateSummary();
@@ -90,6 +112,8 @@ export default function SalesRecords() {
   };
 
   const handleEditSave = async () => {
+    const headers = getHeaders();
+    if (!headers) return navigate("/login");
     try {
       await axios.put(
         `${API}/api/insights/sales-records/${editingRecord}`,
