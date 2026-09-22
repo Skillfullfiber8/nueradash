@@ -1,41 +1,96 @@
 import { GoogleGenAI } from "@google/genai";
-import Groq from "groq-sdk";
 
+// Primary and fallback models for Google Gemini
 const GEMINI_MODELS = [
-  "gemini-3.5-flash-lite",
-  "gemini-3.6-flash",
-  "gemini-3.1-flash-lite",
-  "gemini-3.5-flash",
-  "gemini-flash-latest",
+  "gemini-2.5-flash",
+  "gemini-2.0-flash",
+  "gemini-1.5-flash",
 ];
 
 /**
- * Call Gemini API with automatic model fallback in case of rate limits or high demand
+ * Helper to get an initialized GoogleGenAI client instance
+ */
+function getGeminiClient() {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey || apiKey.trim() === "") {
+    const err = new Error("GEMINI_API_KEY is not configured on the server. Please set GEMINI_API_KEY in your environment variables.");
+    err.status = 503;
+    err.code = "MISSING_GEMINI_API_KEY";
+    throw err;
+  }
+  return new GoogleGenAI({ apiKey: apiKey.trim() });
+}
+
+/**
+ * Sanitize and format Gemini errors safely without leaking sensitive information
+ */
+function formatGeminiError(err) {
+  const message = err?.message || String(err);
+  if (message.includes("API_KEY_INVALID") || message.includes("401") || message.includes("API key not valid")) {
+    const authErr = new Error("Gemini API authentication failed: Invalid or expired GEMINI_API_KEY.");
+    authErr.status = 401;
+    authErr.code = "GEMINI_AUTH_ERROR";
+    return authErr;
+  }
+  if (message.includes("RESOURCE_EXHAUSTED") || message.includes("429") || message.includes("Quota exceeded")) {
+    const quotaErr = new Error("Gemini API quota exceeded or rate limited. Please retry shortly.");
+    quotaErr.status = 429;
+    quotaErr.code = "GEMINI_QUOTA_EXCEEDED";
+    return quotaErr;
+  }
+  if (message.includes("NOT_FOUND") || message.includes("404") || message.includes("models/")) {
+    const modelErr = new Error(`Gemini model error: ${message}`);
+    modelErr.status = 502;
+    modelErr.code = "GEMINI_MODEL_ERROR";
+    return modelErr;
+  }
+  return err;
+}
+
+/**
+ * Call Gemini API with automatic model fallback in case of rate limits or model availability
  */
 async function callGemini(contents, options = {}) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error("GEMINI_API_KEY is not configured");
-
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = getGeminiClient();
   let lastError = null;
 
   for (const model of GEMINI_MODELS) {
     try {
+      const config = {
+        temperature: options.temperature ?? 0.7,
+        maxOutputTokens: options.maxTokens ?? 1000,
+      };
+
+      if (options.systemInstruction) {
+        config.systemInstruction = options.systemInstruction;
+      }
+
+      if (options.responseMimeType) {
+        config.responseMimeType = options.responseMimeType;
+      }
+
+      if (options.responseSchema) {
+        config.responseSchema = options.responseSchema;
+      }
+
       const response = await ai.models.generateContent({
         model,
         contents,
-        config: {
-          temperature: options.temperature ?? 0.7,
-          maxOutputTokens: options.maxTokens ?? 1000,
-          systemInstruction: options.systemInstruction,
-        },
+        config,
       });
 
       if (response && response.text) {
         return response.text.trim();
       }
     } catch (err) {
-      lastError = err;
+      const formatted = formatGeminiError(err);
+      lastError = formatted;
+
+      // If missing API key or auth failed, no need to cycle through fallback models
+      if (formatted.code === "MISSING_GEMINI_API_KEY" || formatted.code === "GEMINI_AUTH_ERROR") {
+        throw formatted;
+      }
+
       console.warn(`[Gemini warning] Model ${model} failed: ${err.message}. Trying next fallback...`);
     }
   }
@@ -44,122 +99,79 @@ async function callGemini(contents, options = {}) {
 }
 
 /**
- * Call Groq API if GROQ_API_KEY is configured
- */
-async function callGroq(messages, options = {}) {
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) throw new Error("GROQ_API_KEY is not configured");
-
-  const groq = new Groq({ apiKey });
-  const completion = await groq.chat.completions.create({
-    model: "llama-3.3-70b-versatile",
-    messages,
-    temperature: options.temperature ?? 0.7,
-    max_tokens: options.maxTokens ?? 1000,
-  });
-
-  return completion.choices[0]?.message?.content?.trim() || "";
-}
-
-/**
- * Unified text generation that prioritizes Gemini and falls back to Groq (or vice-versa)
+ * Unified text generation using Google Gemini
  */
 export async function generateText({ systemPrompt, userPrompt, temperature, maxTokens }) {
-  if (process.env.GEMINI_API_KEY) {
-    try {
-      return await callGemini(userPrompt, {
-        systemInstruction: systemPrompt,
-        temperature,
-        maxTokens,
-      });
-    } catch (geminiErr) {
-      console.error("[AI Service] Gemini call failed:", geminiErr.message);
-      if (process.env.GROQ_API_KEY) {
-        console.log("[AI Service] Falling back to Groq...");
-        return await callGroq(
-          [
-            ...(systemPrompt ? [{ role: "system", content: systemPrompt }] : []),
-            { role: "user", content: userPrompt },
-          ],
-          { temperature, maxTokens }
-        );
-      }
-      throw geminiErr;
-    }
+  try {
+    return await callGemini(userPrompt, {
+      systemInstruction: systemPrompt,
+      temperature,
+      maxTokens,
+    });
+  } catch (err) {
+    const formatted = formatGeminiError(err);
+    console.error("[AI Service] Gemini text generation failed:", formatted.message);
+    throw formatted;
   }
-
-  if (process.env.GROQ_API_KEY) {
-    return await callGroq(
-      [
-        ...(systemPrompt ? [{ role: "system", content: systemPrompt }] : []),
-        { role: "user", content: userPrompt },
-      ],
-      { temperature, maxTokens }
-    );
-  }
-
-  throw new Error("No AI API key found. Please set GEMINI_API_KEY or GROQ_API_KEY in backend/.env");
 }
 
 /**
  * Unified Chat generation supporting multi-turn conversation history
  */
 export async function generateChatReply({ systemContext, history = [], message }) {
-  if (process.env.GEMINI_API_KEY) {
-    try {
-      // Build conversation prompt for Gemini
-      const formattedHistory = (history || []).slice(-8).map(h => `${h.role === "user" ? "User" : "Assistant"}: ${h.content}`).join("\n");
-      const fullPrompt = `${formattedHistory ? formattedHistory + "\n" : ""}User: ${message}\nAssistant:`;
+  try {
+    // Format conversation history into readable transcript for Gemini prompt
+    const formattedHistory = (history || [])
+      .slice(-8)
+      .map((h) => `${h.role === "user" ? "User" : "Assistant"}: ${h.content}`)
+      .join("\n");
 
-      return await callGemini(fullPrompt, {
-        systemInstruction: systemContext,
-        temperature: 0.5,
-        maxTokens: 500,
-      });
-    } catch (geminiErr) {
-      console.error("[AI Service] Gemini Chat failed:", geminiErr.message);
-      if (process.env.GROQ_API_KEY) {
-        console.log("[AI Service] Falling back to Groq for chat...");
-        const groqMessages = [
-          ...(systemContext ? [{ role: "system", content: systemContext }] : []),
-          ...(history || []).slice(-6).map(h => ({ role: h.role, content: h.content })),
-          { role: "user", content: message },
-        ];
-        return await callGroq(groqMessages, { temperature: 0.5, maxTokens: 500 });
-      }
-      throw geminiErr;
-    }
+    const fullPrompt = `${formattedHistory ? formattedHistory + "\n" : ""}User: ${message}\nAssistant:`;
+
+    return await callGemini(fullPrompt, {
+      systemInstruction: systemContext,
+      temperature: 0.5,
+      maxTokens: 500,
+    });
+  } catch (err) {
+    const formatted = formatGeminiError(err);
+    console.error("[AI Service] Gemini Chat failed:", formatted.message);
+    throw formatted;
   }
-
-  if (process.env.GROQ_API_KEY) {
-    const groqMessages = [
-      ...(systemContext ? [{ role: "system", content: systemContext }] : []),
-      ...(history || []).slice(-6).map(h => ({ role: h.role, content: h.content })),
-      { role: "user", content: message },
-    ];
-    return await callGroq(groqMessages, { temperature: 0.5, maxTokens: 500 });
-  }
-
-  throw new Error("No AI API key found. Please set GEMINI_API_KEY in backend/.env");
 }
 
 /**
- * Generate and parse JSON responses safely (cleaning backticks and formatting)
+ * Generate and parse structured JSON responses safely from Google Gemini
  */
-export async function generateJson({ prompt, systemPrompt }) {
-  const rawText = await generateText({
-    systemPrompt: systemPrompt || "You are a JSON-only API. You must respond ONLY with raw, valid JSON. No explanations, no backticks, no markdown.",
-    userPrompt: prompt,
-    temperature: 0,
-    maxTokens: 1500,
-  });
+export async function generateJson({ prompt, systemPrompt, responseSchema }) {
+  try {
+    const rawText = await callGemini(prompt, {
+      systemInstruction: systemPrompt || "You are a JSON-only API. You must respond ONLY with valid JSON matching the requested structure. No markdown fences, no natural language commentary.",
+      temperature: 0,
+      maxTokens: 2000,
+      responseMimeType: "application/json",
+      responseSchema,
+    });
 
-  // Strip markdown ```json ``` code fences if model adds them
-  const cleaned = rawText
-    .replace(/^```json\s*/i, "")
-    .replace(/^```\s*/i, "")
-    .replace(/```$/i, "")
-    .trim();
+    // Clean markdown fences if model inadvertently wraps JSON in ```json ... ```
+    let cleaned = rawText
+      .replace(/^```json\s*/i, "")
+      .replace(/^```\s*/i, "")
+      .replace(/```$/i, "")
+      .trim();
 
-  return JSON.parse(cleaned);
+    try {
+      return JSON.parse(cleaned);
+    } catch (parseErr) {
+      console.error("[AI Service] Failed to parse JSON returned by Gemini:", cleaned);
+      const jsonErr = new Error(`AI returned malformed JSON: ${parseErr.message}`);
+      jsonErr.status = 502;
+      jsonErr.code = "AI_JSON_PARSE_ERROR";
+      throw jsonErr;
+    }
+  } catch (err) {
+    const formatted = formatGeminiError(err);
+    console.error("[AI Service] Gemini JSON generation failed:", formatted.message);
+    throw formatted;
+  }
 }

@@ -236,7 +236,6 @@ router.post("/regenerate-summary", verifyToken, async (req, res) => {
 
 // Chatbot
 router.post("/chat", verifyToken, async (req, res) => {
-
   try {
     const { message, history } = req.body;
     const userId = new mongoose.Types.ObjectId(req.user.id);
@@ -297,7 +296,8 @@ Daily Trend: ${trend.map(t => `${t._id}: ₹${t.totalSales}`).join(", ")}
 
   } catch (err) {
     console.error("Chat error:", err.message);
-    res.status(500).json({ message: "Chat failed", error: err.message });
+    const statusCode = err.status || 500;
+    res.status(statusCode).json({ message: "Chat failed", error: err.message });
   }
 });
 

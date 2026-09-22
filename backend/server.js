@@ -1,7 +1,8 @@
+import dotenv from "dotenv";
 dotenv.config();
+
 import express from "express";
 import mongoose from "mongoose";
-import dotenv from "dotenv";
 import cors from "cors";
 import uploadRoutes from "./routes/uploadRoutes.js";
 import productRoutes from "./routes/productRoutes.js";
@@ -28,7 +29,6 @@ app.use(cors({
 }));
 
 app.use(express.json());
-
 
 mongoose
   .connect(process.env.MONGO_URI)

@@ -2,8 +2,8 @@ import express from "express";
 import multer from "multer";
 import fs from "fs";
 import Papa from "papaparse";
-import { generateJson } from "../services/aiService.js";
 import mongoose from "mongoose";
+import { generateJson } from "../services/aiService.js";
 import SalesCustomer from "../models/SalesCustomer.js";
 import ProductMaster from "../models/ProductMaster.js";
 import { verifyToken } from "../middleware/authMiddleware.js";
@@ -18,7 +18,7 @@ const TARGET_COLUMNS = [
   "Quantity", "Price", "Date", "Location", "Payment Method"
 ];
 
-// Step 1 — Upload CSV and get AI column mapping suggestions
+// Step 1 — Upload CSV and get AI column mapping suggestions via Google Gemini
 router.post("/analyze", verifyToken, upload.single("file"), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: "No file uploaded" });
@@ -30,8 +30,8 @@ router.post("/analyze", verifyToken, upload.single("file"), async (req, res) => 
       transformHeader: (header) => header.trim(),
       transform: (value) => value.trim(),
     });
-    const uploadedColumns = parsed.meta.fields;
-    const sampleRows = parsed.data.slice(0, 3);
+    const uploadedColumns = parsed.meta.fields || [];
+    const sampleRows = (parsed.data || []).slice(0, 3);
 
     const prompt = `
 You are a data mapping assistant. The user has uploaded a CSV with these columns:
@@ -43,7 +43,7 @@ ${JSON.stringify(sampleRows, null, 2)}
 Map each uploaded column to one of these target columns (or "skip" if no match):
 ${JSON.stringify(TARGET_COLUMNS)}
 
-Respond ONLY with a valid JSON object like this:
+Respond ONLY with a valid JSON object matching this schema:
 {
   "Sale ID": "uploaded_column_name or skip",
   "Customer Name": "uploaded_column_name or skip",
@@ -59,13 +59,20 @@ Respond ONLY with a valid JSON object like this:
   "Location": "uploaded_column_name or skip",
   "Payment Method": "uploaded_column_name or skip"
 }
-No explanation, no markdown, only the JSON object.
-    `;
+`;
 
     const mapping = await generateJson({
-      systemPrompt: "You are a data mapping assistant. You must respond ONLY with a valid raw JSON object. No explanation, no markdown.",
+      systemPrompt: "You are a data mapping assistant. You must respond ONLY with a valid raw JSON object conforming to the requested schema. No explanation, no markdown.",
       prompt,
     });
+
+    // Validate that mapping is a valid key-value object
+    if (!mapping || typeof mapping !== "object" || Array.isArray(mapping)) {
+      return res.status(502).json({
+        message: "AI returned invalid mapping structure",
+        error: "Expected a valid JSON object for column mappings",
+      });
+    }
 
     res.json({
       uploadedColumns,
@@ -76,8 +83,12 @@ No explanation, no markdown, only the JSON object.
     });
 
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Error analyzing file", error: err.message });
+    console.error("[Smart Import Analyze Error]:", err.message);
+    const statusCode = err.status || 500;
+    res.status(statusCode).json({
+      message: "Error analyzing file",
+      error: err.message || "Failed to analyze CSV columns",
+    });
   }
 });
 
