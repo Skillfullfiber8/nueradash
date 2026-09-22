@@ -33,6 +33,17 @@ export async function generateAndSaveSummary(userId) {
     ]),
   ]);
 
+  // If no transactions exist for the user, reset summary gracefully without making an AI API call
+  if (!summary.length || !summary[0]?.count || summary[0].count === 0) {
+    const defaultMsg = "No summary yet. Upload data to generate one.";
+    await AiSummary.findOneAndUpdate(
+      { userId: userObjectId },
+      { summary: defaultMsg, generatedAt: new Date() },
+      { upsert: true, new: true }
+    );
+    return defaultMsg;
+  }
+
   const prompt = `
 Based on the following sales data, write a concise 3-4 sentence business summary highlighting key insights, top performers, and one actionable recommendation.
 
@@ -47,6 +58,7 @@ Most Used Payment Method: ${paymentMethods[0]?._id || "N/A"}
 Write a professional business summary in plain English. No bullet points, no markdown.
   `;
 
+  console.log(`[AI_SUMMARY] Generating summary for user: ${userId}`);
   const summaryText = await generateText({
     systemPrompt: "You are a professional business analytics assistant. Write concise, insightful executive summaries.",
     userPrompt: prompt,

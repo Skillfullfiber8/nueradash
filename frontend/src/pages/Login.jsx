@@ -1,21 +1,27 @@
 import { useNavigate } from "react-router-dom";
 import AuthForm from "../components/AuthForm";
+import { API_BASE_URL } from "../config/api";
 
 export default function Login() {
   const navigate = useNavigate();
 
   const handleLogin = async (formData) => {
-    const res = await fetch(`${process.env.REACT_APP_API_URL}/api/auth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(formData),
-    });
-    const data = await res.json();
-    if (data.token) {
-      localStorage.setItem("token", data.token);
-      navigate("/dashboard");
-    } else {
-      alert("Login failed!");
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+      const data = await res.json();
+      if (res.ok && data.token) {
+        localStorage.setItem("token", data.token);
+        navigate("/dashboard");
+      } else {
+        alert(data.message || "Login failed! Please verify your credentials.");
+      }
+    } catch (err) {
+      console.error("Login request error:", err);
+      alert("Unable to connect to the backend server. Please check your network connection.");
     }
   };
 

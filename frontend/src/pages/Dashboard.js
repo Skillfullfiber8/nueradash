@@ -7,9 +7,9 @@ import {
 } from "recharts";
 import Chatbot from "../components/Chatbot";
 import AskWhyModal from "../components/decision/AskWhyModal";
+import { API_BASE_URL, getAuthHeaders } from "../config/api";
 
 const COLORS = ["#6366f1", "#22d3ee", "#f59e0b", "#10b981", "#f43f5e", "#8b5cf6", "#ec4899"];
-const API = process.env.REACT_APP_API_URL;
 
 function StatCard({ label, value, onAskWhy }) {
   return (
@@ -69,59 +69,63 @@ function Dashboard() {
   useEffect(() => { fetchData(); }, []);
 
   const fetchData = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const headers = { Authorization: `Bearer ${token}` };
+    const headers = getAuthHeaders();
+    if (!headers) {
+      navigate("/login");
+      return;
+    }
 
+    try {
       const [
         summaryRes, productsRes, cityRes, categoryRes,
         paymentRes, predictionRes, topCustomersRes, customerTypesRes,
         radarRes
       ] = await Promise.all([
-        axios.get(`${API}/api/insights/summary`, { headers }),
-        axios.get(`${API}/api/insights/top-products`, { headers }),
-        axios.get(`${API}/api/insights/sales-by-city`, { headers }),
-        axios.get(`${API}/api/insights/sales-by-category`, { headers }),
-        axios.get(`${API}/api/insights/payment-methods`, { headers }),
-        axios.get(`${API}/api/insights/sales-prediction`, { headers }),
-        axios.get(`${API}/api/insights/top-customers`, { headers }),
-        axios.get(`${API}/api/insights/customer-types`, { headers }),
-        axios.get(`${API}/api/decision/radar`, { headers }).catch(() => ({ data: null })),
+        axios.get(`${API_BASE_URL}/api/insights/summary`, { headers }).catch(() => ({ data: {} })),
+        axios.get(`${API_BASE_URL}/api/insights/top-products`, { headers }).catch(() => ({ data: [] })),
+        axios.get(`${API_BASE_URL}/api/insights/sales-by-city`, { headers }).catch(() => ({ data: [] })),
+        axios.get(`${API_BASE_URL}/api/insights/sales-by-category`, { headers }).catch(() => ({ data: [] })),
+        axios.get(`${API_BASE_URL}/api/insights/payment-methods`, { headers }).catch(() => ({ data: [] })),
+        axios.get(`${API_BASE_URL}/api/insights/sales-prediction`, { headers }).catch(() => ({ data: { historical: [], predicted: [] } })),
+        axios.get(`${API_BASE_URL}/api/insights/top-customers`, { headers }).catch(() => ({ data: [] })),
+        axios.get(`${API_BASE_URL}/api/insights/customer-types`, { headers }).catch(() => ({ data: { repeatCustomers: 0, newCustomers: 0 } })),
+        axios.get(`${API_BASE_URL}/api/decision/radar`, { headers }).catch(() => ({ data: null })),
       ]);
 
-      setSummary(summaryRes.data);
-      setTopProducts(productsRes.data);
-      setCities(cityRes.data);
-      setCategories(categoryRes.data);
-      setPaymentMethods(paymentRes.data);
-      setTopCustomers(topCustomersRes.data);
-      setCustomerTypes(customerTypesRes.data);
+      setSummary(summaryRes.data || {});
+      setTopProducts(productsRes.data || []);
+      setCities(cityRes.data || []);
+      setCategories(categoryRes.data || []);
+      setPaymentMethods(paymentRes.data || []);
+      setTopCustomers(topCustomersRes.data || []);
+      setCustomerTypes(customerTypesRes.data || { repeatCustomers: 0, newCustomers: 0 });
       if (radarRes?.data) setRadarStats(radarRes.data);
 
-      const { historical, predicted } = predictionRes.data;
+      const { historical = [], predicted = [] } = predictionRes.data || {};
       setPrediction([...(historical || []), ...(predicted || [])]);
 
       setLoadingAI(true);
-      const aiRes = await axios.get(`${API}/api/insights/ai-summary`, { headers });
-      setAiSummary(aiRes.data);
+      const aiRes = await axios.get(`${API_BASE_URL}/api/insights/ai-summary`, { headers }).catch(() => ({ data: { summary: "", generatedAt: null } }));
+      setAiSummary(aiRes.data || { summary: "", generatedAt: null });
 
     } catch (err) {
-      console.error(err);
+      console.error("Dashboard fetch error:", err);
     } finally {
       setLoadingAI(false);
     }
   };
 
   const handleRegenerateSummary = async () => {
+    const headers = getAuthHeaders();
+    if (!headers) return;
+
     setLoadingAI(true);
     try {
-      const token = localStorage.getItem("token");
-      const headers = { Authorization: `Bearer ${token}` };
-      await axios.post(`${API}/api/insights/regenerate-summary`, {}, { headers });
-      const aiRes = await axios.get(`${API}/api/insights/ai-summary`, { headers });
+      await axios.post(`${API_BASE_URL}/api/insights/regenerate-summary`, {}, { headers });
+      const aiRes = await axios.get(`${API_BASE_URL}/api/insights/ai-summary`, { headers });
       setAiSummary(aiRes.data);
     } catch (err) {
-      console.error(err);
+      console.error("Regenerate summary error:", err);
     } finally {
       setLoadingAI(false);
     }
@@ -133,7 +137,7 @@ function Dashboard() {
   };
 
   const avgOrderValue = summary.count ? Math.round(summary.totalSales / summary.count) : 0;
-  const totalCustomers = customerTypes.repeatCustomers + customerTypes.newCustomers;
+  const totalCustomers = (customerTypes.repeatCustomers || 0) + (customerTypes.newCustomers || 0);
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-6 flex flex-col gap-6">
@@ -193,7 +197,7 @@ function Dashboard() {
             <button
               onClick={handleRegenerateSummary}
               disabled={loadingAI}
-              className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded-lg transition disabled:opacity-50"
+              className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded-lg transition disabled:opacity-50 shadow-sm"
             >
               {loadingAI ? "Regenerating..." : "🔄 Regenerate"}
             </button>

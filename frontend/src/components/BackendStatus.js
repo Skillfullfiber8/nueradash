@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
+import { API_BASE_URL } from "../config/api";
 
 function BackendStatus() {
   const [message, setMessage] = useState("Checking backend connection...");
 
   useEffect(() => {
     axios
-      .get("http://localhost:5000")
-      .then((res) => setMessage(res.data))
+      .get(`${API_BASE_URL}/`)
+      .then((res) => setMessage(typeof res.data === "string" ? res.data : "✅ Backend Connected"))
       .catch(() => setMessage("❌ Backend connection failed"));
   }, []);
 

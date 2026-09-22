@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import axios from "axios";
-
-const API = process.env.REACT_APP_API_URL;
+import { API_BASE_URL, getAuthHeaders } from "../config/api";
 
 export default function Chatbot() {
   const [open, setOpen] = useState(false);
@@ -11,7 +10,6 @@ export default function Chatbot() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const bottomRef = useRef(null);
-  const token = localStorage.getItem("token");
 
   useEffect(() => {
     if (open) bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -26,16 +24,30 @@ export default function Chatbot() {
     setLoading(true);
 
     try {
+      const headers = getAuthHeaders();
+      if (!headers) {
+        setMessages(prev => [...prev, {
+          role: "assistant",
+          content: "Please log in to your account to query your live sales analytics."
+        }]);
+        setLoading(false);
+        return;
+      }
+
       const res = await axios.post(
-        `${API}/api/insights/chat`,
+        `${API_BASE_URL}/api/insights/chat`,
         { message: userMessage.content, history: messages },
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers }
       );
-      setMessages(prev => [...prev, { role: "assistant", content: res.data.reply }]);
+
+      const replyText = res.data?.reply || res.data?.message || "No response received from assistant.";
+      setMessages(prev => [...prev, { role: "assistant", content: replyText }]);
     } catch (err) {
+      console.error("[Chatbot Error]:", err?.response?.data || err.message);
+      const errorMsg = err?.response?.data?.message || err?.response?.data?.error || "Sorry, I couldn't process that request right now. Please check server logs.";
       setMessages(prev => [...prev, {
         role: "assistant",
-        content: "Sorry, I couldn't process that. Please try again."
+        content: errorMsg
       }]);
     } finally {
       setLoading(false);

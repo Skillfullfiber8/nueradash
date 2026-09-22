@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
-
-const API = process.env.REACT_APP_API_URL || "http://localhost:5000";
+import { API_BASE_URL, getAuthHeaders } from "../config/api";
 
 export default function SalesRecords() {
   const [records, setRecords] = useState([]);
@@ -14,15 +13,10 @@ export default function SalesRecords() {
   const [editForm, setEditForm] = useState({});
   const navigate = useNavigate();
 
-  const getHeaders = () => {
-    const token = localStorage.getItem("token");
-    return token ? { Authorization: `Bearer ${token}` } : null;
-  };
-
   useEffect(() => { fetchRecords(); }, []);
 
   const fetchRecords = async (start = "", end = "") => {
-    const headers = getHeaders();
+    const headers = getAuthHeaders();
     if (!headers) {
       navigate("/login");
       return;
@@ -30,7 +24,7 @@ export default function SalesRecords() {
 
     setLoading(true);
     try {
-      let url = `${API}/api/insights/sales-records`;
+      let url = `${API_BASE_URL}/api/insights/sales-records`;
       const params = [];
       if (start) params.push(`startDate=${start}`);
       if (end) params.push(`endDate=${end}`);
@@ -38,7 +32,7 @@ export default function SalesRecords() {
       const res = await axios.get(url, { headers });
       setRecords(res.data);
     } catch (err) {
-      console.error(err);
+      console.error("Fetch sales records error:", err);
       if (err.response?.status === 401 || err.response?.status === 403) {
         localStorage.removeItem("token");
         alert("Your session has expired. Please log in again.");
@@ -50,12 +44,12 @@ export default function SalesRecords() {
   };
 
   const regenerateSummary = async () => {
-    const headers = getHeaders();
+    const headers = getAuthHeaders();
     if (!headers) return;
     try {
-      await axios.post(`${API}/api/insights/regenerate-summary`, {}, { headers });
+      await axios.post(`${API_BASE_URL}/api/insights/regenerate-summary`, {}, { headers });
     } catch (err) {
-      console.error("Summary regeneration failed:", err.message);
+      console.warn("Summary regeneration after modification failed:", err?.message);
     }
   };
 
@@ -73,27 +67,31 @@ export default function SalesRecords() {
 
   const handleDelete = async (id) => {
     if (!window.confirm("Delete this record?")) return;
-    const headers = getHeaders();
+    const headers = getAuthHeaders();
     if (!headers) return navigate("/login");
     try {
-      await axios.delete(`${API}/api/insights/sales-records/${id}`, { headers });
+      await axios.delete(`${API_BASE_URL}/api/insights/sales-records/${id}`, { headers });
       await regenerateSummary();
       fetchRecords(startDate, endDate);
     } catch (err) {
-      alert("Delete failed");
+      console.error("Delete record error:", err);
+      alert(err?.response?.data?.message || "Delete failed");
     }
   };
 
   const handleClearAll = async () => {
     if (!window.confirm("Delete ALL sales records? This cannot be undone.")) return;
-    const headers = getHeaders();
+    const headers = getAuthHeaders();
     if (!headers) return navigate("/login");
+
     try {
-      await axios.delete(`${API}/api/insights/sales-records`, { headers });
-      await regenerateSummary();
+      const res = await axios.delete(`${API_BASE_URL}/api/insights/sales-records`, { headers });
       setRecords([]);
+      await regenerateSummary();
+      alert(res.data?.message || "All records successfully deleted.");
     } catch (err) {
-      alert("Failed to clear records");
+      console.error("Clear all data error:", err);
+      alert(err?.response?.data?.message || "Failed to clear records. Check server connection.");
     }
   };
 
@@ -112,11 +110,11 @@ export default function SalesRecords() {
   };
 
   const handleEditSave = async () => {
-    const headers = getHeaders();
+    const headers = getAuthHeaders();
     if (!headers) return navigate("/login");
     try {
       await axios.put(
-        `${API}/api/insights/sales-records/${editingRecord}`,
+        `${API_BASE_URL}/api/insights/sales-records/${editingRecord}`,
         editForm,
         { headers }
       );
@@ -124,7 +122,8 @@ export default function SalesRecords() {
       setEditingRecord(null);
       fetchRecords(startDate, endDate);
     } catch (err) {
-      alert("Update failed");
+      console.error("Update record error:", err);
+      alert(err?.response?.data?.message || "Update failed");
     }
   };
 
@@ -140,7 +139,7 @@ export default function SalesRecords() {
         <h1 className="text-2xl font-bold text-gray-800 dark:text-white">📅 Sales Records</h1>
         <button
           onClick={handleClearAll}
-          className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-xl text-sm font-semibold transition"
+          className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-xl text-sm font-semibold transition shadow"
         >
           🗑️ Clear All Data
         </button>

@@ -1,21 +1,27 @@
 import { useNavigate } from "react-router-dom";
 import AuthForm from "../components/AuthForm";
+import { API_BASE_URL } from "../config/api";
 
 export default function Signup() {
   const navigate = useNavigate();
 
   const handleSignup = async (formData) => {
-    const res = await fetch(`${process.env.REACT_APP_API_URL}/api/auth/signup`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(formData),
-    });
-    const data = await res.json();
-    if (res.ok) {
-      alert("Signup successful! Please login.");
-      navigate("/login");
-    } else {
-      alert(data.message || "Signup failed!");
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/auth/signup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert("Signup successful! Please login.");
+        navigate("/login");
+      } else {
+        alert(data.message || "Signup failed! Please try a different email.");
+      }
+    } catch (err) {
+      console.error("Signup request error:", err);
+      alert("Unable to connect to the backend server. Please check your network connection.");
     }
   };
 

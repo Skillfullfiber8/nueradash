@@ -1,15 +1,11 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
-import { useNavigate } from "react-router-dom";
-
-const API = process.env.REACT_APP_API_URL;
+import { API_BASE_URL, getAuthHeaders } from "../../config/api";
 
 export default function AskWhyModal({ isOpen, onClose, metricName = "Revenue", onSelectSimulate }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("products");
-  const navigate = useNavigate();
-  const token = localStorage.getItem("token");
 
   useEffect(() => {
     if (isOpen) {
@@ -18,10 +14,13 @@ export default function AskWhyModal({ isOpen, onClose, metricName = "Revenue", o
   }, [isOpen, metricName]);
 
   const fetchRootCause = async () => {
+    const headers = getAuthHeaders();
+    if (!headers) return;
+
     setLoading(true);
     try {
-      const res = await axios.get(`${API}/api/decision/root-cause`, {
-        headers: { Authorization: `Bearer ${token}` },
+      const res = await axios.get(`${API_BASE_URL}/api/decision/root-cause`, {
+        headers,
       });
       setData(res.data);
     } catch (err) {
@@ -58,142 +57,163 @@ export default function AskWhyModal({ isOpen, onClose, metricName = "Revenue", o
         {/* Content Body */}
         <div className="p-6 overflow-y-auto flex-1 space-y-6">
           {loading ? (
-            <div className="py-16 text-center space-y-3">
-              <div className="inline-block w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-              <p className="text-gray-500 dark:text-gray-400 text-sm">Decomposing multi-dimensional drivers...</p>
+            <div className="py-12 text-center text-gray-400">
+              <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+              <p className="text-xs">Decomposing mathematical sales drivers...</p>
             </div>
-          ) : !data || data.status === "insufficient_data" ? (
-            <div className="py-12 text-center text-gray-500 dark:text-gray-400">
-              <p className="text-3xl mb-2">📊</p>
-              <p className="font-medium text-gray-700 dark:text-gray-300">Insufficient Data for Root Cause Decomposition</p>
-              <p className="text-xs mt-1">Upload at least 2 distinct sales records to unlock period-over-period investigation.</p>
+          ) : data?.status === "insufficient_data" ? (
+            <div className="p-8 text-center text-gray-400">
+              <p className="text-sm font-semibold">{data.message}</p>
             </div>
           ) : (
             <>
-              {/* Period Comparison Card */}
-              <div className="grid grid-cols-3 gap-3 p-4 bg-gray-50 dark:bg-gray-800/60 rounded-2xl border border-gray-200 dark:border-gray-700/60 text-center">
-                <div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Previous Baseline</p>
-                  <p className="text-lg font-bold text-gray-800 dark:text-gray-100">
-                    ₹{data.summary?.previousRevenue?.toLocaleString("en-IN") || 0}
+              {/* Summary KPIs */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="bg-gray-50 dark:bg-gray-800/60 p-3.5 rounded-2xl border border-gray-100 dark:border-gray-800">
+                  <p className="text-[10px] uppercase font-bold text-gray-400">Revenue Shift</p>
+                  <p className="text-base font-bold text-gray-800 dark:text-white mt-0.5">
+                    {data?.summary?.revenueDelta >= 0 ? "+" : ""}₹{data?.summary?.revenueDelta?.toLocaleString("en-IN")}
+                  </p>
+                  <span className={`text-[10px] font-bold ${data?.summary?.revenuePercentChange >= 0 ? "text-emerald-500" : "text-rose-500"}`}>
+                    {data?.summary?.revenuePercentChange >= 0 ? "+" : ""}{data?.summary?.revenuePercentChange}%
+                  </span>
+                </div>
+
+                <div className="bg-gray-50 dark:bg-gray-800/60 p-3.5 rounded-2xl border border-gray-100 dark:border-gray-800">
+                  <p className="text-[10px] uppercase font-bold text-gray-400">Profit Shift</p>
+                  <p className="text-base font-bold text-gray-800 dark:text-white mt-0.5">
+                    {data?.summary?.profitDelta >= 0 ? "+" : ""}₹{data?.summary?.profitDelta?.toLocaleString("en-IN")}
+                  </p>
+                  <span className={`text-[10px] font-bold ${data?.summary?.profitPercentChange >= 0 ? "text-emerald-500" : "text-rose-500"}`}>
+                    {data?.summary?.profitPercentChange >= 0 ? "+" : ""}{data?.summary?.profitPercentChange}%
+                  </span>
+                </div>
+
+                <div className="bg-gray-50 dark:bg-gray-800/60 p-3.5 rounded-2xl border border-gray-100 dark:border-gray-800">
+                  <p className="text-[10px] uppercase font-bold text-gray-400">Volume Shift</p>
+                  <p className="text-base font-bold text-gray-800 dark:text-white mt-0.5">
+                    {data?.summary?.currentOrders - data?.summary?.previousOrders >= 0 ? "+" : ""}{data?.summary?.currentOrders - data?.summary?.previousOrders} Orders
+                  </p>
+                  <span className="text-[10px] font-bold text-indigo-500">
+                    {data?.summary?.ordersPercentChange}%
+                  </span>
+                </div>
+
+                <div className="bg-gray-50 dark:bg-gray-800/60 p-3.5 rounded-2xl border border-gray-100 dark:border-gray-800">
+                  <p className="text-[10px] uppercase font-bold text-gray-400">AOV Shift</p>
+                  <p className="text-base font-bold text-gray-800 dark:text-white mt-0.5">
+                    {data?.summary?.currentAov - data?.summary?.previousAov >= 0 ? "+" : ""}₹{data?.summary?.currentAov - data?.summary?.previousAov}
+                  </p>
+                  <span className="text-[10px] font-bold text-indigo-500">
+                    {data?.summary?.aovPercentChange}%
+                  </span>
+                </div>
+              </div>
+
+              {/* AI Explanation Box */}
+              {data?.aiExplanation && (
+                <div className="p-4 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 rounded-2xl">
+                  <p className="text-xs font-bold text-indigo-900 dark:text-indigo-200 flex items-center gap-1.5 mb-1">
+                    <span>💡</span> Executive Synthesis
+                  </p>
+                  <p className="text-xs text-indigo-950 dark:text-indigo-300 leading-relaxed">
+                    {data.aiExplanation}
                   </p>
                 </div>
-                <div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Current Period</p>
-                  <p className="text-lg font-bold text-indigo-600 dark:text-indigo-400">
-                    ₹{data.summary?.currentRevenue?.toLocaleString("en-IN") || 0}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Net Delta</p>
-                  <p
-                    className={`text-lg font-bold ${
-                      (data.summary?.revenueDelta || 0) >= 0
-                        ? "text-emerald-600 dark:text-emerald-400"
-                        : "text-rose-600 dark:text-rose-400"
+              )}
+
+              {/* Contributor Breakdown Tabs */}
+              <div>
+                <div className="flex border-b border-gray-200 dark:border-gray-800 gap-4 mb-4">
+                  <button
+                    onClick={() => setActiveTab("products")}
+                    className={`pb-2 text-xs font-bold transition border-b-2 ${
+                      activeTab === "products"
+                        ? "border-indigo-600 text-indigo-600 dark:text-indigo-400"
+                        : "border-transparent text-gray-500 hover:text-gray-700"
                     }`}
                   >
-                    {(data.summary?.revenueDelta || 0) >= 0 ? "+" : ""}
-                    ₹{data.summary?.revenueDelta?.toLocaleString("en-IN") || 0} (
-                    {data.summary?.revenuePercentChange}%)
-                  </p>
-                </div>
-              </div>
-
-              {/* AI Explanation Callout */}
-              <div className="bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200/80 dark:border-indigo-800/60 rounded-2xl p-4">
-                <div className="flex items-center gap-2 mb-2 text-indigo-700 dark:text-indigo-300 font-semibold text-sm">
-                  <span>🤖</span> AI Root Cause Explanation
-                </div>
-                <p className="text-sm leading-relaxed text-gray-700 dark:text-gray-200">
-                  {data.aiExplanation}
-                </p>
-              </div>
-
-              {/* Contributing Factors Tabs */}
-              <div>
-                <div className="flex items-center justify-between mb-3 border-b border-gray-200 dark:border-gray-700 pb-2">
-                  <h3 className="font-semibold text-gray-800 dark:text-gray-200 text-sm">
-                    Contributing Factors Breakdown
-                  </h3>
-                  <div className="flex gap-1">
-                    {["products", "regions", "categories"].map((tab) => (
-                      <button
-                        key={tab}
-                        onClick={() => setActiveTab(tab)}
-                        className={`px-3 py-1 rounded-lg text-xs font-medium capitalize transition ${
-                          activeTab === tab
-                            ? "bg-indigo-600 text-white shadow-sm"
-                            : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
-                        }`}
-                      >
-                        {tab}
-                      </button>
-                    ))}
-                  </div>
+                    Product Contributors ({data?.contributors?.products?.length || 0})
+                  </button>
+                  <button
+                    onClick={() => setActiveTab("regions")}
+                    className={`pb-2 text-xs font-bold transition border-b-2 ${
+                      activeTab === "regions"
+                        ? "border-indigo-600 text-indigo-600 dark:text-indigo-400"
+                        : "border-transparent text-gray-500 hover:text-gray-700"
+                    }`}
+                  >
+                    Regional Drivers ({data?.contributors?.regions?.length || 0})
+                  </button>
+                  <button
+                    onClick={() => setActiveTab("categories")}
+                    className={`pb-2 text-xs font-bold transition border-b-2 ${
+                      activeTab === "categories"
+                        ? "border-indigo-600 text-indigo-600 dark:text-indigo-400"
+                        : "border-transparent text-gray-500 hover:text-gray-700"
+                    }`}
+                  >
+                    Category Breakdown ({data?.contributors?.categories?.length || 0})
+                  </button>
                 </div>
 
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs text-gray-600 dark:text-gray-300">
-                    <thead className="bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 uppercase font-semibold">
-                      <tr>
-                        <th className="py-2.5 px-3 rounded-l-lg">Entity</th>
-                        <th className="py-2.5 px-3">Baseline</th>
-                        <th className="py-2.5 px-3">Current</th>
-                        <th className="py-2.5 px-3">Delta</th>
-                        <th className="py-2.5 px-3 rounded-r-lg">Impact Share</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                      {(data.contributors?.[activeTab] || []).slice(0, 5).map((item, idx) => (
-                        <tr key={idx} className="hover:bg-gray-50/60 dark:hover:bg-gray-800/40">
-                          <td className="py-2.5 px-3 font-medium text-gray-800 dark:text-gray-100">
-                            {item.name}
-                          </td>
-                          <td className="py-2.5 px-3">₹{item.prevSales?.toLocaleString("en-IN") || 0}</td>
-                          <td className="py-2.5 px-3">₹{item.currSales?.toLocaleString("en-IN") || 0}</td>
-                          <td
-                            className={`py-2.5 px-3 font-semibold ${
-                              item.deltaSales >= 0
-                                ? "text-emerald-600 dark:text-emerald-400"
-                                : "text-rose-600 dark:text-rose-400"
-                            }`}
-                          >
-                            {item.deltaSales >= 0 ? "+" : ""}₹{item.deltaSales?.toLocaleString("en-IN")} ({item.pctChange}%)
-                          </td>
-                          <td className="py-2.5 px-3 font-bold text-indigo-600 dark:text-indigo-400">
-                            {item.impactShare}%
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div className="space-y-2">
+                  {(data?.contributors?.[activeTab] || []).slice(0, 6).map((item, idx) => (
+                    <div
+                      key={idx}
+                      className="p-3 bg-gray-50 dark:bg-gray-800/40 rounded-xl border border-gray-100 dark:border-gray-800 flex justify-between items-center text-xs"
+                    >
+                      <div>
+                        <p className="font-bold text-gray-800 dark:text-gray-200">{item.name}</p>
+                        <p className="text-[10px] text-gray-400">
+                          Baseline: ₹{item.prevSales?.toLocaleString("en-IN") || 0} → Current: ₹{item.currSales?.toLocaleString("en-IN") || 0}
+                        </p>
+                      </div>
+
+                      <div className="text-right">
+                        <span
+                          className={`font-bold font-mono ${
+                            item.deltaSales >= 0 ? "text-emerald-500" : "text-rose-500"
+                          }`}
+                        >
+                          {item.deltaSales >= 0 ? "+" : ""}₹{item.deltaSales?.toLocaleString("en-IN")}
+                        </span>
+                        <p className="text-[10px] text-gray-400">
+                          {item.pctChange > 0 ? "+" : ""}{item.pctChange}% ({item.impactShare}% share)
+                        </p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             </>
           )}
         </div>
 
-        {/* Footer Actions: Detect -> Explain -> Predict -> Simulate -> Recommend */}
-        <div className="bg-gray-50 dark:bg-gray-800/80 px-6 py-4 border-t border-gray-200 dark:border-gray-800 flex flex-wrap gap-2 justify-end">
-          <button
-            onClick={() => {
-              onClose();
-              navigate("/decision-center?tab=simulator");
-            }}
-            className="px-4 py-2 bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-xl text-xs font-semibold hover:bg-indigo-100 dark:hover:bg-indigo-900 transition flex items-center gap-1.5"
-          >
-            <span>🧪</span> Test in Simulator
-          </button>
-          <button
-            onClick={() => {
-              onClose();
-              navigate("/decision-center?tab=actions");
-            }}
-            className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded-xl text-xs font-semibold shadow hover:from-indigo-700 hover:to-violet-700 transition flex items-center gap-1.5"
-          >
-            <span>📋</span> View Action Plan →
-          </button>
+        {/* Footer Actions */}
+        <div className="bg-gray-50 dark:bg-gray-800/80 px-6 py-4 border-t border-gray-100 dark:border-gray-800 flex justify-between items-center">
+          <p className="text-[11px] text-gray-400">
+            Compare Period: {data?.periods?.previous?.label} vs {data?.periods?.current?.label}
+          </p>
+          <div className="flex gap-2">
+            {onSelectSimulate && (
+              <button
+                onClick={() => {
+                  onClose();
+                  onSelectSimulate({ type: "price_change" });
+                }}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1"
+              >
+                <span>🧪</span> Simulate Fix
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl text-xs font-semibold hover:bg-gray-300 dark:hover:bg-gray-600 transition"
+            >
+              Close
+            </button>
+          </div>
         </div>
       </div>
     </div>

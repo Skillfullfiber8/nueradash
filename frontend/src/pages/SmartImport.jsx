@@ -1,14 +1,13 @@
 import { useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import { API_BASE_URL, getAuthHeaders } from "../config/api";
 
 const TARGET_COLUMNS = [
   "Sale ID", "Customer Name", "Region", "Customer Email",
   "Customer Phone", "Product ID", "Product Name", "Category",
   "Quantity", "Price", "Date", "Location", "Payment Method"
 ];
-
-const API = process.env.REACT_APP_API_URL;
 
 export default function SmartImport() {
   const [file, setFile] = useState(null);
@@ -20,39 +19,57 @@ export default function SmartImport() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const navigate = useNavigate();
-  const token = localStorage.getItem("token");
 
   const handleAnalyze = async () => {
     if (!file) return alert("Please select a file");
+    const headers = getAuthHeaders();
+    if (!headers) {
+      navigate("/login");
+      return;
+    }
+
     setLoading(true);
     const formData = new FormData();
     formData.append("file", file);
+
     try {
       const res = await axios.post(
-        `${API}/api/smart-import/analyze`,
+        `${API_BASE_URL}/api/smart-import/analyze`,
         formData,
-        { headers: { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" } }
+        {
+          headers: {
+            ...headers,
+            "Content-Type": "multipart/form-data"
+          }
+        }
       );
-      setUploadedColumns(res.data.uploadedColumns);
-      setMapping(res.data.mapping);
-      setSampleRows(res.data.sampleRows);
+      setUploadedColumns(res.data.uploadedColumns || []);
+      setMapping(res.data.mapping || {});
+      setSampleRows(res.data.sampleRows || []);
       setFilePath(res.data.filePath);
       setStep(2);
     } catch (err) {
-      alert("Failed to analyze file");
-      console.error(err);
+      console.error("Smart Import analyze error:", err);
+      const errMsg = err?.response?.data?.error || err?.response?.data?.message || "Failed to analyze CSV columns with AI. Please check server logs.";
+      alert(errMsg);
     } finally {
       setLoading(false);
     }
   };
 
   const handleImport = async () => {
+    const headers = getAuthHeaders();
+    if (!headers) {
+      navigate("/login");
+      return;
+    }
+
     setLoading(true);
     try {
       const res = await axios.post(
-        `${API}/api/smart-import/import`,
+        `${API_BASE_URL}/api/smart-import/import`,
         { filePath, mapping },
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers }
       );
       setMessage(
         `✅ ${res.data.message} (${res.data.rows_saved} rows saved${
@@ -63,8 +80,9 @@ export default function SmartImport() {
       );
       setStep(3);
     } catch (err) {
-      alert("Import failed");
-      console.error(err);
+      console.error("Smart Import commit error:", err);
+      const errMsg = err?.response?.data?.error || err?.response?.data?.message || "Import failed. Please check your data format.";
+      alert(errMsg);
     } finally {
       setLoading(false);
     }

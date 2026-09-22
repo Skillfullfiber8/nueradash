@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
-
-const API = process.env.REACT_APP_API_URL || "http://localhost:5000";
+import { API_BASE_URL, getAuthHeaders } from "../config/api";
 
 export default function ProductMaster() {
   const [products, setProducts] = useState([]);
@@ -12,17 +11,12 @@ export default function ProductMaster() {
   const [errorMsg, setErrorMsg] = useState("");
   const navigate = useNavigate();
 
-  const getHeaders = () => {
-    const token = localStorage.getItem("token");
-    return token ? { Authorization: `Bearer ${token}` } : null;
-  };
-
   useEffect(() => {
     fetchProducts();
   }, []);
 
   const fetchProducts = async () => {
-    const headers = getHeaders();
+    const headers = getAuthHeaders();
     if (!headers) {
       navigate("/login");
       return;
@@ -31,8 +25,8 @@ export default function ProductMaster() {
     setLoading(true);
     setErrorMsg("");
     try {
-      const res = await axios.get(`${API}/api/product-master`, { headers });
-      setProducts(res.data);
+      const res = await axios.get(`${API_BASE_URL}/api/product-master`, { headers });
+      setProducts(res.data || []);
     } catch (err) {
       console.error("Fetch products error:", err);
       if (err.response?.status === 401 || err.response?.status === 403) {
@@ -56,7 +50,7 @@ export default function ProductMaster() {
       return;
     }
 
-    const headers = getHeaders();
+    const headers = getAuthHeaders();
     if (!headers) {
       navigate("/login");
       return;
@@ -64,10 +58,10 @@ export default function ProductMaster() {
 
     try {
       if (editingId) {
-        await axios.put(`${API}/api/product-master/${editingId}`, form, { headers });
+        await axios.put(`${API_BASE_URL}/api/product-master/${editingId}`, form, { headers });
         setEditingId(null);
       } else {
-        await axios.post(`${API}/api/product-master`, form, { headers });
+        await axios.post(`${API_BASE_URL}/api/product-master`, form, { headers });
       }
       setForm({ productId: "", productName: "", category: "", costPrice: "", sellingPrice: "" });
       fetchProducts();
@@ -96,14 +90,14 @@ export default function ProductMaster() {
 
   const handleDelete = async (id) => {
     if (!window.confirm("Are you sure you want to delete this product?")) return;
-    const headers = getHeaders();
+    const headers = getAuthHeaders();
     if (!headers) {
       navigate("/login");
       return;
     }
 
     try {
-      await axios.delete(`${API}/api/product-master/${id}`, { headers });
+      await axios.delete(`${API_BASE_URL}/api/product-master/${id}`, { headers });
       fetchProducts();
     } catch (err) {
       console.error("Delete product error:", err);

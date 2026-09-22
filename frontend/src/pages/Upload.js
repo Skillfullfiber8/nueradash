@@ -1,5 +1,6 @@
 import { useState } from "react";
 import axios from "axios";
+import { API_BASE_URL } from "../config/api";
 
 function Upload() {
   const [file, setFile] = useState(null);
@@ -57,14 +58,14 @@ function Upload() {
       setLoading(true);
 
       const res = await axios.post(
-  "http://localhost:5000/api/upload/sales-standardized",
-  formData,
-  {
-    headers: {
-      "Content-Type": "multipart/form-data",
-    },
-  }
-);
+        `${API_BASE_URL}/api/upload/sales-standardized`,
+        formData,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        }
+      );
 
       alert("Upload successful 🚀");
       console.log(res.data);

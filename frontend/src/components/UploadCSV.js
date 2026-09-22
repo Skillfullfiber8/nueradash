@@ -1,8 +1,7 @@
 import React, { useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
-
-const API = process.env.REACT_APP_API_URL;
+import { API_BASE_URL, getAuthHeaders } from "../config/api";
 
 const UploadCSV = () => {
   const [file, setFile] = useState(null);
@@ -15,19 +14,24 @@ const UploadCSV = () => {
 
   const handleUpload = async () => {
     if (!file) return setMessage("Please select a file");
+    const headers = getAuthHeaders();
+    if (!headers) {
+      navigate("/login");
+      return;
+    }
+
     setLoading(true);
-    const token = localStorage.getItem("token");
     const formData = new FormData();
     formData.append("file", file);
 
     try {
       const res = await axios.post(
-        `${API}/api/upload/upload-sales-customer`,
+        `${API_BASE_URL}/api/upload/upload-sales-customer`,
         formData,
         {
           headers: {
+            ...headers,
             "Content-Type": "multipart/form-data",
-            Authorization: `Bearer ${token}`,
           },
         }
       );
@@ -41,8 +45,8 @@ const UploadCSV = () => {
       );
       setUploaded(true);
     } catch (err) {
-      console.error(err);
-      setMessage("❌ Upload failed");
+      console.error("CSV Upload error:", err);
+      setMessage(`❌ ${err?.response?.data?.message || err?.response?.data?.error || "Upload failed"}`);
     } finally {
       setLoading(false);
     }
@@ -79,7 +83,7 @@ const UploadCSV = () => {
         </button>
 
         {message && (
-          <p className={`mt-4 text-sm text-center ${uploaded ? "text-green-500" : "text-red-500"}`}>
+          <p className={`mt-4 text-sm text-center ${uploaded ? "text-green-500 font-semibold" : "text-red-500 font-medium"}`}>
             {message}
           </p>
         )}

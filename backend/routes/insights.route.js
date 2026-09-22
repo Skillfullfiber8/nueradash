@@ -24,7 +24,8 @@ router.get("/summary", verifyToken, async (req, res) => {
     ]);
     res.json(result[0] || { totalSales: 0, totalProfit: 0, count: 0 });
   } catch (err) {
-    res.status(500).json({ message: "Error", error: err });
+    console.error("[INSIGHTS_SUMMARY] Error:", err.message);
+    res.status(500).json({ success: false, message: "Error fetching summary metrics", error: err.message });
   }
 });
 
@@ -39,7 +40,8 @@ router.get("/top-products", verifyToken, async (req, res) => {
     ]);
     res.json(result);
   } catch (err) {
-    res.status(500).json({ message: "Error", error: err });
+    console.error("[TOP_PRODUCTS] Error:", err.message);
+    res.status(500).json({ success: false, message: "Error fetching top products", error: err.message });
   }
 });
 
@@ -53,7 +55,8 @@ router.get("/sales-by-region", verifyToken, async (req, res) => {
     ]);
     res.json(result);
   } catch (err) {
-    res.status(500).json({ message: "Error", error: err });
+    console.error("[SALES_BY_REGION] Error:", err.message);
+    res.status(500).json({ success: false, message: "Error fetching sales by region", error: err.message });
   }
 });
 
@@ -67,7 +70,8 @@ router.get("/sales-by-category", verifyToken, async (req, res) => {
     ]);
     res.json(result);
   } catch (err) {
-    res.status(500).json({ message: "Error", error: err });
+    console.error("[SALES_BY_CATEGORY] Error:", err.message);
+    res.status(500).json({ success: false, message: "Error fetching sales by category", error: err.message });
   }
 });
 
@@ -81,7 +85,8 @@ router.get("/payment-methods", verifyToken, async (req, res) => {
     ]);
     res.json(result);
   } catch (err) {
-    res.status(500).json({ message: "Error", error: err });
+    console.error("[PAYMENT_METHODS] Error:", err.message);
+    res.status(500).json({ success: false, message: "Error fetching payment methods", error: err.message });
   }
 });
 
@@ -100,7 +105,8 @@ router.get("/sales-trend", verifyToken, async (req, res) => {
     ]);
     res.json(result);
   } catch (err) {
-    res.status(500).json({ message: "Error", error: err });
+    console.error("[SALES_TREND] Error:", err.message);
+    res.status(500).json({ success: false, message: "Error fetching sales trend", error: err.message });
   }
 });
 
@@ -149,7 +155,8 @@ router.get("/sales-prediction", verifyToken, async (req, res) => {
 
     res.json({ historical: result, predicted });
   } catch (err) {
-    res.status(500).json({ message: "Error", error: err });
+    console.error("[SALES_PREDICTION] Error:", err.message);
+    res.status(500).json({ success: false, message: "Error generating sales prediction", error: err.message });
   }
 });
 
@@ -164,7 +171,8 @@ router.get("/sales-by-city", verifyToken, async (req, res) => {
     ]);
     res.json(result);
   } catch (err) {
-    res.status(500).json({ message: "Error", error: err });
+    console.error("[SALES_BY_CITY] Error:", err.message);
+    res.status(500).json({ success: false, message: "Error fetching sales by city", error: err.message });
   }
 });
 
@@ -185,7 +193,8 @@ router.get("/top-customers", verifyToken, async (req, res) => {
     ]);
     res.json(result);
   } catch (err) {
-    res.status(500).json({ message: "Error", error: err });
+    console.error("[TOP_CUSTOMERS] Error:", err.message);
+    res.status(500).json({ success: false, message: "Error fetching top customers", error: err.message });
   }
 });
 
@@ -205,7 +214,8 @@ router.get("/customer-types", verifyToken, async (req, res) => {
     ]);
     res.json(result[0] || { repeatCustomers: 0, newCustomers: 0 });
   } catch (err) {
-    res.status(500).json({ message: "Error", error: err });
+    console.error("[CUSTOMER_TYPES] Error:", err.message);
+    res.status(500).json({ success: false, message: "Error fetching customer types", error: err.message });
   }
 });
 
@@ -220,24 +230,33 @@ router.get("/ai-summary", verifyToken, async (req, res) => {
     }
     res.json({ summary: "No summary yet. Upload data to generate one.", generatedAt: null });
   } catch (err) {
-    res.status(500).json({ message: "Error", error: err.message });
+    console.error("[GET_AI_SUMMARY] Error:", err.message);
+    res.status(500).json({ success: false, message: "Error fetching AI summary", error: err.message });
   }
 });
 
 // Regenerate AI Summary manually
 router.post("/regenerate-summary", verifyToken, async (req, res) => {
   try {
-    await generateAndSaveSummary(req.user.id);
-    res.json({ message: "Summary regenerated" });
+    console.log(`[AI_SUMMARY] Manual regenerate requested by user: ${req.user.id}`);
+    const summary = await generateAndSaveSummary(req.user.id);
+    res.json({ success: true, message: "Summary regenerated", summary });
   } catch (err) {
-    res.status(500).json({ message: "Failed", error: err.message });
+    console.error("[REGENERATE_AI_SUMMARY] Error:", err.message);
+    const statusCode = err.status || 500;
+    res.status(statusCode).json({ success: false, message: "Failed to generate AI summary", error: err.message });
   }
 });
 
 // Chatbot
 router.post("/chat", verifyToken, async (req, res) => {
   try {
+    console.log(`[CHATBOT] Request received for user: ${req.user.id}`);
     const { message, history } = req.body;
+    if (!message || typeof message !== "string" || message.trim() === "") {
+      return res.status(400).json({ success: false, message: "Message cannot be empty." });
+    }
+
     const userId = new mongoose.Types.ObjectId(req.user.id);
 
     const [summary, topProducts, regions, categories, topCustomers, trend] = await Promise.all([
@@ -286,18 +305,51 @@ Top Customers: ${topCustomers.map(c => `${c._id} ₹${c.totalSpent} (${c.orders}
 Daily Trend: ${trend.map(t => `${t._id}: ₹${t.totalSales}`).join(", ")}
     `;
 
+    console.log(`[CHATBOT] Invoking Gemini API for user query: "${message.slice(0, 50)}..."`);
     const reply = await generateChatReply({
       systemContext: context,
       history,
       message,
     });
+    console.log(`[CHATBOT] Gemini responded successfully.`);
 
-    res.json({ reply });
+    res.json({ success: true, reply });
 
   } catch (err) {
-    console.error("Chat error:", err.message);
+    console.error("[CHATBOT] Error processing chat query:", err.message);
     const statusCode = err.status || 500;
-    res.status(statusCode).json({ message: "Chat failed", error: err.message });
+    res.status(statusCode).json({
+      success: false,
+      message: err.message || "Failed to process chat query with AI assistant",
+      error: err.code || "CHAT_ERROR",
+    });
+  }
+});
+
+// Delete all sales records (STATIC route before parameterized route)
+router.delete("/sales-records", verifyToken, async (req, res) => {
+  try {
+    const userObjectId = new mongoose.Types.ObjectId(req.user.id);
+    console.log(`[CLEAR_DATA] User ${req.user.id} initiated clear all sales records`);
+
+    const [deletedSales] = await Promise.all([
+      SalesCustomer.deleteMany({ userId: userObjectId }),
+      AiSummary.findOneAndUpdate(
+        { userId: userObjectId },
+        { summary: "No summary yet. Upload data to generate one.", generatedAt: new Date() },
+        { upsert: true, new: true }
+      ),
+    ]);
+
+    console.log(`[CLEAR_DATA] Successfully cleared ${deletedSales.deletedCount} transactions for user ${req.user.id}`);
+    res.json({
+      success: true,
+      message: "All sales records and summary cleared successfully.",
+      deletedCount: deletedSales.deletedCount,
+    });
+  } catch (err) {
+    console.error("[CLEAR_DATA] Error clearing records:", err.message);
+    res.status(500).json({ success: false, message: "Failed to clear sales records", error: err.message });
   }
 });
 
@@ -333,7 +385,8 @@ router.get("/sales-records", verifyToken, async (req, res) => {
 
     res.json(result);
   } catch (err) {
-    res.status(500).json({ message: "Error", error: err.message });
+    console.error("[GET_SALES_RECORDS] Error:", err.message);
+    res.status(500).json({ success: false, message: "Error fetching sales records", error: err.message });
   }
 });
 
@@ -345,10 +398,11 @@ router.put("/sales-records/:id", verifyToken, async (req, res) => {
       req.body,
       { new: true }
     );
-    if (!updated) return res.status(404).json({ message: "Record not found" });
-    res.json(updated);
+    if (!updated) return res.status(404).json({ success: false, message: "Record not found" });
+    res.json({ success: true, record: updated });
   } catch (err) {
-    res.status(500).json({ message: "Error", error: err.message });
+    console.error("[UPDATE_SALES_RECORD] Error:", err.message);
+    res.status(500).json({ success: false, message: "Error updating sales record", error: err.message });
   }
 });
 
@@ -359,22 +413,11 @@ router.delete("/sales-records/:id", verifyToken, async (req, res) => {
       _id: req.params.id,
       userId: new mongoose.Types.ObjectId(req.user.id)
     });
-    if (!deleted) return res.status(404).json({ message: "Record not found" });
-    res.json({ message: "Deleted" });
+    if (!deleted) return res.status(404).json({ success: false, message: "Record not found" });
+    res.json({ success: true, message: "Record deleted successfully" });
   } catch (err) {
-    res.status(500).json({ message: "Error", error: err.message });
-  }
-});
-
-// Delete all sales records
-router.delete("/sales-records", verifyToken, async (req, res) => {
-  try {
-    await SalesCustomer.deleteMany({
-      userId: new mongoose.Types.ObjectId(req.user.id)
-    });
-    res.json({ message: "All records deleted" });
-  } catch (err) {
-    res.status(500).json({ message: "Error", error: err.message });
+    console.error("[DELETE_SINGLE_RECORD] Error:", err.message);
+    res.status(500).json({ success: false, message: "Error deleting sales record", error: err.message });
   }
 });
 
