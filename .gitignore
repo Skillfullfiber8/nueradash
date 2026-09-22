@@ -17,3 +17,16 @@ uploads/
 # Build outputs
 frontend/build/
 dist/
+mobile/build/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+*.pub-cache/
+
+# IDE & OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db

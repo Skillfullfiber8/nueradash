@@ -138,6 +138,17 @@ nueradash/
 │   ├── package.json                 # Frontend dependencies & scripts
 │   └── tailwind.config.js           # Tailwind configuration
 │
+├── mobile/                          # Flutter Android Application
+│   ├── android/                     # Android native gradle & manifest configuration
+│   ├── lib/
+│   │   ├── core/                    # API client, JWT storage, and App Theme
+│   │   ├── models/                  # User, Dashboard, Product, Sales, Decision, Chat models
+│   │   ├── services/                # REST API services (Dashboard, Auth, Decision, Upload)
+│   │   ├── widgets/                 # Reusable KPI cards, fl_chart graphs, modals
+│   │   ├── screens/                 # Mobile views (Dashboard, Decision, Products, Sales, Import)
+│   │   └── main.dart                # Mobile application entry point
+│   └── pubspec.yaml                 # Flutter dependencies & assets
+│
 └── README.md                        # Project documentation
 ```
 
@@ -148,20 +159,21 @@ nueradash/
 ### Prerequisites
 - [Node.js](https://nodejs.org/) (v18.x or higher)
 - [MongoDB](https://www.mongodb.com/) (Local instance or MongoDB Atlas connection URI)
-- [Groq API Key](https://console.groq.com/) (Free tier available for ultra-fast LLaMA inference)
+- [Google Gemini API Key](https://ai.google.dev/) or [Groq API Key](https://console.groq.com/)
+- [Flutter SDK & Android Studio](https://docs.flutter.dev/get-started/install) (for Android mobile app)
 
 ---
 
 ### 1. Clone & Setup Repository
 
 ```bash
-git clone https://github.com/your-username/nueradash.git
+git clone https://github.com/aswin-b-07/NeuraDash.git
 cd nueradash
 ```
 
 ---
 
-### 2. Backend Setup
+### 2. Backend Setup (Shared by Web & Mobile)
 
 1. Navigate to the backend directory:
    ```bash
@@ -180,17 +192,13 @@ cd nueradash
 
 3. Start the backend server:
    ```bash
-   # Development mode with Nodemon
-   npx nodemon server.js
-
-   # Or standard Node runtime
    node server.js
    ```
    *The server will start on `http://localhost:5000` with confirmation: `✅ MongoDB Connected`.*
 
 ---
 
-### 3. Frontend Setup
+### 3. Web Frontend Setup (React.js)
 
 1. In a new terminal window, navigate to the frontend directory:
    ```bash
@@ -198,12 +206,7 @@ cd nueradash
    npm install
    ```
 
-2. Create a `.env` file in the `frontend/` directory (optional for local defaults):
-   ```env
-   REACT_APP_API_URL=http://localhost:5000
-   ```
-
-3. Start the React development server:
+2. Start the React development server:
    ```bash
    npm start
    ```
@@ -211,7 +214,29 @@ cd nueradash
 
 ---
 
-## 🌐 Environment Variables
+### 4. Mobile App Setup (Flutter Android)
+
+The Flutter mobile application communicates with the exact same Node.js/Express backend and MongoDB database.
+
+1. Open the `mobile` folder in **Android Studio** or **VS Code**.
+2. Install Flutter packages:
+   ```bash
+   cd mobile
+   flutter pub get
+   ```
+
+3. **Configure Backend URL for Android:**
+   - **Android Emulator:** Defaults to `http://10.0.2.2:5000/api` in `mobile/lib/core/constants/api_config.dart`.
+   - **Physical Device:** Change `baseUrl` in `api_config.dart` to your computer's LAN IP (e.g. `http://192.168.1.50:5000/api`).
+
+4. Run the app on your connected Android device or emulator:
+   ```bash
+   flutter run
+   ```
+
+---
+
+## 🌐 Environment & Network Configuration
 
 ### Backend (`backend/.env`)
 | Variable | Required | Description | Example |
@@ -222,10 +247,12 @@ cd nueradash
 | `GEMINI_API_KEY` | **Yes** | API key from Google AI Studio | `AIzaSy...` |
 | `GROQ_API_KEY` | No | Optional secondary / fallback LLM provider | `gsk_...` |
 
-### Frontend (`frontend/.env`)
-| Variable | Required | Description | Example |
-|---|---|---|---|
-| `REACT_APP_API_URL` | **Yes** | Base URL pointing to the running backend | `http://localhost:5000` |
+### Mobile Network Mapping (`mobile/lib/core/constants/api_config.dart`)
+| Environment | Host Address |
+|---|---|
+| **Android Emulator** | `http://10.0.2.2:5000/api` |
+| **Physical Device (WiFi)** | `http://<YOUR_LOCAL_IP>:5000/api` |
+| **Production Server** | `https://api.yourdomain.com/api` |
 
 ---
 
