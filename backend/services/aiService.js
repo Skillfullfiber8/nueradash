@@ -1,5 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
 
+let cachedDiscoveredModels = null;
+
 /**
  * Build list of candidate models with process.env.GEMINI_MODEL as primary
  */
@@ -9,9 +11,11 @@ function getCandidateModels() {
     envModel,
     "gemini-2.0-flash",
     "gemini-2.0-flash-lite",
-    "gemini-1.5-flash-latest",
     "gemini-1.5-flash",
+    "gemini-1.5-flash-latest",
     "gemini-1.5-pro",
+    "gemini-1.5-flash-8b",
+    "gemini-pro",
   ].filter(Boolean);
   return Array.from(new Set(models));
 }
@@ -28,6 +32,34 @@ function getGeminiClient() {
     throw err;
   }
   return new GoogleGenAI({ apiKey: apiKey.trim() });
+}
+
+/**
+ * Query ModelService.ListModels to discover models available to this specific API key
+ */
+async function discoverAvailableModels(ai) {
+  if (cachedDiscoveredModels && cachedDiscoveredModels.length > 0) {
+    return cachedDiscoveredModels;
+  }
+  try {
+    console.log("[GEMINI] Querying ModelService.ListModels for available models with this API key...");
+    const pager = await ai.models.list();
+    const discovered = [];
+    for await (const m of pager) {
+      const name = m.name ? m.name.replace(/^models\//, "") : "";
+      if (name && (name.includes("gemini") || name.includes("flash") || name.includes("pro"))) {
+        discovered.push(name);
+      }
+    }
+    console.log(`[GEMINI] Discovered ${discovered.length} models from Google API:`, discovered);
+    if (discovered.length > 0) {
+      cachedDiscoveredModels = discovered;
+    }
+    return discovered;
+  } catch (err) {
+    console.warn("[GEMINI] ModelService.ListModels query failed:", err.message);
+    return [];
+  }
 }
 
 /**
@@ -61,13 +93,14 @@ function formatGeminiError(err) {
 }
 
 /**
- * Call Gemini API with automatic model fallback across candidate models
+ * Call Gemini API with automatic candidate cycling and dynamic ListModels discovery fallback
  */
 async function callGemini(contents, options = {}) {
   const ai = getGeminiClient();
   const candidateModels = getCandidateModels();
   let lastError = null;
 
+  // 1. Try pre-configured candidate models
   for (const model of candidateModels) {
     try {
       console.log(`[GEMINI] Calling Gemini API (model: ${model})...`);
@@ -108,8 +141,52 @@ async function callGemini(contents, options = {}) {
         throw formatted;
       }
 
-      console.warn(`[GEMINI] Model candidate "${model}" failed: ${formatted.message}. Attempting fallback...`);
+      console.warn(`[GEMINI] Model candidate "${model}" failed: ${formatted.message}. Attempting next option...`);
     }
+  }
+
+  // 2. If standard models returned 404/NOT_FOUND, query ListModels dynamically for active models
+  console.warn("[GEMINI] All standard models failed. Attempting dynamic model discovery via ListModels...");
+  const discoveredModels = await discoverAvailableModels(ai);
+
+  for (const model of discoveredModels) {
+    if (candidateModels.includes(model)) continue; // Already attempted
+    try {
+      console.log(`[GEMINI] Calling dynamically discovered model: ${model}...`);
+      const config = {
+        temperature: options.temperature ?? 0.7,
+        maxOutputTokens: options.maxTokens ?? 1000,
+      };
+
+      if (options.systemInstruction) config.systemInstruction = options.systemInstruction;
+      if (options.responseMimeType) config.responseMimeType = options.responseMimeType;
+      if (options.responseSchema) config.responseSchema = options.responseSchema;
+
+      const response = await ai.models.generateContent({
+        model,
+        contents,
+        config,
+      });
+
+      if (response && response.text) {
+        console.log(`[GEMINI] Successfully generated content using discovered model: ${model}`);
+        return response.text.trim();
+      }
+    } catch (err) {
+      const formatted = formatGeminiError(err);
+      lastError = formatted;
+      console.warn(`[GEMINI] Discovered model "${model}" failed: ${formatted.message}`);
+    }
+  }
+
+  // 3. If all attempts failed with 404, provide an actionable error explanation
+  if (lastError && lastError.code === "GEMINI_MODEL_ERROR") {
+    const helpfulErr = new Error(
+      "Gemini API model not found (404). Please ensure the Generative Language API is enabled in your Google Cloud Project or generate an API key from Google AI Studio (https://aistudio.google.com/app/apikey)."
+    );
+    helpfulErr.status = 502;
+    helpfulErr.code = "GEMINI_MODEL_UNAVAILABLE";
+    throw helpfulErr;
   }
 
   throw lastError || new Error("All Gemini models failed to respond");
@@ -192,4 +269,5 @@ export async function generateJson({ prompt, systemPrompt, responseSchema }) {
     throw formatted;
   }
 }
+
 
